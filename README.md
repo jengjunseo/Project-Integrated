@@ -41,10 +41,13 @@ Windows OCR은 한국어 언어 팩이 필요하다. OCR 출력은 정답으로 
 ```powershell
 vercel link --project project-integrated --scope wondaes-projects-fe5c826b --yes
 vercel pull --yes --environment=production --scope wondaes-projects-fe5c826b
-vercel build --prod
+npm run build
+node tools/prepare-vercel.mjs
 vercel deploy --prebuilt --prod --skip-domain --scope wondaes-projects-fe5c826b
 vercel curl / --deployment 배포URL
 vercel promote 배포URL --scope wondaes-projects-fe5c826b --yes
 ```
+
+Windows에서 Vercel CLI 빌더가 `spawn cmd.exe ENOENT`로 종료되어, 검증한 dist를 공식 Build Output API v3 형식으로 묶는 tools/prepare-vercel.mjs를 사용한다. 인증/환경 파일은 출력 폴더에 복사하지 않는다.
 
 업데이트 전 기록을 백업한다. 새 Service Worker는 진행 중인 묶음이 끝날 때까지 적용하지 않는다. 보고서는 [요구 추적](docs/REQUIREMENTS_TRACE.md), [데이터 모델](docs/DATA_MODEL.md), [QA](docs/QA_REPORT.md), [성능](docs/PERFORMANCE_REPORT.md), [사용·운영 인계](docs/HANDOFF.md)를 참조한다.
