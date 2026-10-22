@@ -1,0 +1,196 @@
+{
+  "run": {
+    "startTime": "2026-10-22T14:39:05.584Z",
+    "duration": 64915.779,
+    "expected": 14,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "tests": [
+    {
+      "title": "first run → scope → read → hide → compare → rating, same-position reveal and undo",
+      "status": "expected",
+      "duration": 8818
+    },
+    {
+      "title": "typed answers survive IME composing Enter, reveal, reload, and undo",
+      "status": "expected",
+      "duration": 3047
+    },
+    {
+      "title": "unknown is one provisional failure and corrections do not double count",
+      "status": "expected",
+      "duration": 1030
+    },
+    {
+      "title": "installed pack works after full network cutoff and cold reload",
+      "status": "expected",
+      "duration": 5307
+    },
+    {
+      "title": "failed pack integrity never becomes ready and retry succeeds",
+      "status": "expected",
+      "duration": 2892
+    },
+    {
+      "title": "backup downloaded, import merges twice without duplicate events or settings loss",
+      "status": "expected",
+      "duration": 2819
+    },
+    {
+      "title": "another active tab must refresh before overwriting new state",
+      "status": "expected",
+      "duration": 1214
+    },
+    {
+      "title": "table, diagram, image mask, dark and 28px remain usable without page overflow",
+      "status": "expected",
+      "duration": 2423
+    },
+    {
+      "title": "storage failure is visible and can be retried without silent progression",
+      "status": "expected",
+      "duration": 1754
+    },
+    {
+      "title": "100 prepared transitions record latency, no fatal errors or duplicated attempts",
+      "status": "expected",
+      "duration": 23249
+    },
+    {
+      "title": "empty scope is explicit; interrupted pack remains incomplete and resumes",
+      "status": "expected",
+      "duration": 971
+    },
+    {
+      "title": "table horizontal position survives reveal; original assistance stays separate",
+      "status": "expected",
+      "duration": 1654
+    },
+    {
+      "title": "360px and landscape retain usable controls and no document overflow",
+      "status": "expected",
+      "duration": 2834
+    },
+    {
+      "title": "new worker waits during a session and preserves records when explicitly applied",
+      "status": "expected",
+      "duration": 3534
+    }
+  ],
+  "performance": {
+    "metric": "Playwright command roundtrip to next visible card (includes automation overhead)",
+    "samples": [
+      78, 78, 75, 76, 75, 79, 77, 76, 77, 77, 77, 77, 75, 73, 75, 76, 76, 75,
+      76, 75, 79, 77, 76, 75, 77, 76, 75, 77, 77, 76, 75, 76, 76, 75, 78, 77,
+      76, 75, 76, 77, 76, 76, 76, 76, 75, 75, 74, 74, 77, 77, 77, 76, 76, 74,
+      75, 76, 76, 76, 76, 76, 76, 75, 76, 77, 75, 75, 75, 77, 75, 77, 74, 77,
+      76, 76, 76, 77, 75, 74, 77, 77, 76, 77, 76, 77, 75, 76, 79, 77, 77, 74,
+      75, 75, 79, 77, 75, 77, 77, 73, 74, 76
+    ],
+    "clickToSecondAnimationFrame": [
+      46.19999998807907, 45.5, 45.60000002384186, 46.60000002384186,
+      45.60000002384186, 46, 45.5, 48.5, 46.60000002384186, 47.80000001192093,
+      46.39999997615814, 45.700000047683716, 46.5, 47.30000001192093,
+      47.59999996423721, 46, 47.80000001192093, 46.89999997615814,
+      46.299999952316284, 47.80000001192093, 45.80000001192093,
+      46.60000002384186, 47.39999997615814, 47.299999952316284,
+      45.30000001192093, 46.89999997615814, 46.60000002384186,
+      46.10000002384186, 46.19999998807907, 46.40000003576279,
+      47.90000003576279, 46.60000002384186, 48, 46.80000001192093,
+      46.19999998807907, 45.59999996423721, 45.30000001192093,
+      47.09999996423721, 46.5, 46.30000001192093, 48.30000001192093,
+      46.19999998807907, 47, 47.10000002384186, 46.5, 46.09999996423721,
+      47.40000003576279, 48.09999996423721, 47.19999998807907,
+      45.40000003576279, 46.60000002384186, 46.80000001192093,
+      47.19999998807907, 46.30000001192093, 47.09999996423721,
+      47.60000002384186, 47.39999997615814, 46.80000001192093,
+      46.80000001192093, 48, 47.40000003576279, 47.10000002384186,
+      46.90000003576279, 46.59999996423721, 48.10000002384186, 47,
+      47.90000003576279, 45.19999998807907, 48, 47.19999998807907,
+      50.30000001192093, 46.09999996423721, 46.80000001192093,
+      46.39999997615814, 48, 46.80000001192093, 48.10000002384186,
+      46.19999998807907, 47.40000003576279, 47.39999997615814,
+      46.80000001192093, 47, 47.10000002384186, 47.30000001192093,
+      48.09999996423721, 47.299999952316284, 45.30000001192093, 47, 48,
+      48.30000001192093, 48.30000001192093, 47.10000002384186,
+      46.60000002384186, 45.80000001192093, 46.200000047683716,
+      45.10000002384186, 48.799999952316284, 47.60000002384186,
+      46.89999997615814, 46.30000001192093
+    ],
+    "navigation": [
+      {
+        "name": "http://127.0.0.1:4173/",
+        "entryType": "navigation",
+        "startTime": 0,
+        "duration": 21.100000023841858,
+        "navigationId": 4020,
+        "initiatorType": "navigation",
+        "deliveryType": "",
+        "nextHopProtocol": "",
+        "renderBlockingStatus": "non-blocking",
+        "contentType": "text/html",
+        "contentEncoding": "",
+        "workerStart": 2.100000023841858,
+        "workerRouterEvaluationStart": 0,
+        "workerCacheLookupStart": 0,
+        "workerMatchedSourceType": "",
+        "workerFinalSourceType": "",
+        "redirectStart": 0,
+        "redirectEnd": 0,
+        "fetchStart": 2.300000011920929,
+        "domainLookupStart": 2.300000011920929,
+        "domainLookupEnd": 2.300000011920929,
+        "connectStart": 2.300000011920929,
+        "secureConnectionStart": 0,
+        "connectEnd": 2.300000011920929,
+        "requestStart": 2.300000011920929,
+        "responseStart": 7.800000011920929,
+        "firstInterimResponseStart": 7.800000011920929,
+        "finalResponseHeadersStart": 0,
+        "responseEnd": 10.5,
+        "transferSize": 1166,
+        "encodedBodySize": 866,
+        "decodedBodySize": 866,
+        "responseStatus": 200,
+        "serverTiming": [],
+        "unloadEventStart": 11.199999988079071,
+        "unloadEventEnd": 11.199999988079071,
+        "domInteractive": 18.100000023841858,
+        "domContentLoadedEventStart": 20.399999976158142,
+        "domContentLoadedEventEnd": 20.5,
+        "domComplete": 21.100000023841858,
+        "loadEventStart": 21.100000023841858,
+        "loadEventEnd": 21.100000023841858,
+        "type": "reload",
+        "redirectCount": 0,
+        "activationStart": 0,
+        "criticalCHRestart": 0,
+        "notRestoredReasons": null,
+        "confidence": {
+          "randomizedTriggerRate": 0.4994798,
+          "value": "high"
+        }
+      }
+    ],
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36 Edg/155.0.0.0",
+    "viewport": {
+      "width": 412,
+      "height": 915
+    },
+    "errors": [],
+    "frame": {
+      "n": 100,
+      "p50": 46.80000001192093,
+      "p95": 48.30000001192093,
+      "max": 50.30000001192093
+    },
+    "roundtrip": {
+      "n": 100,
+      "p50": 76,
+      "p95": 78,
+      "max": 79
+    }
+  }
+}

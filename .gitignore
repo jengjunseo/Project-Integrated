@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.vercel/
+public/content/
+content/private/
+test-results/
+playwright-report/
+*.pdf
+*.env*
+
+.vercel
+.env*
