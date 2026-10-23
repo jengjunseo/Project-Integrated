@@ -1,0 +1,48 @@
+{
+  "version": "v1.1.0",
+  "pages": 135,
+  "units": 452,
+  "examConcepts": 123,
+  "charts": 3,
+  "commit": "2db2b77d0e14e982ab3373c0e7ac27493c64fb50",
+  "deploymentId": "dpl_B1n565j1NUWXSFtaUWCXvgSyNjy9",
+  "checks": [
+    {
+      "file": "index.html",
+      "status": 200,
+      "bytes": 866,
+      "sha256": "c331f0125b74056e3195186c88686ed829295eed136b807d8a7a479a476ccb43",
+      "equalToValidatedBuild": true
+    },
+    {
+      "file": "catalog.json",
+      "status": 200,
+      "bytes": 569480,
+      "sha256": "f3df8900e5d1d814f8075e6850487a173142a2b63103317d7381a2b05895fc56",
+      "equalToValidatedBuild": true
+    },
+    {
+      "file": "sw.js",
+      "status": 200,
+      "bytes": 1341,
+      "sha256": "b6c47f022cfc77145d04e434160a49a5b6df5aad5121772e963c5a5ff5b7cdd9",
+      "equalToValidatedBuild": true
+    },
+    {
+      "file": "question.jpg",
+      "status": 200,
+      "bytes": 695894,
+      "sha256": "14dbef81b225ec9f1387836f59748bef2cada1d5e131f127f657b06a818e32c4",
+      "equalToValidatedBuild": true
+    },
+    {
+      "file": "app.js",
+      "status": 200,
+      "bytes": 55900,
+      "sha256": "08b0ef12360bf497fa4bfcf1dca471e31f514c232e80f07e5ee6158a281ef687",
+      "equalToValidatedBuild": true
+    }
+  ],
+  "securityHeaders": true,
+  "workerNoCache": true
+}

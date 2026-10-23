@@ -1,21 +1,28 @@
-# 프로덕션 배포
+# 프로덕션 배포 · v1.1.0
 
 - 서비스: https://project-integrated-wondaes-projects-fe5c826b.vercel.app
-- 배포: https://project-integrated-338i0nv40-wondaes-projects-fe5c826b.vercel.app
-- 대시보드: https://vercel.com/wondaes-projects-fe5c826b/project-integrated/5GndTJrxrTdCoFMpaw3mvXioHtEW
+- 현재 배포: https://project-integrated-pt3ufb6a0-wondaes-projects-fe5c826b.vercel.app
+- 대시보드: https://vercel.com/wondaes-projects-fe5c826b/project-integrated/B1n565j1NUWXSFtaUWCXvgSyNjy9
 - 저장소: https://github.com/jengjunseo/Project-Integrated
-- 애플리케이션 commit: `2dae8adaaba6066396009a01b08673b854a5e088` (main)
-- 배포 ID: `dpl_5GndTJrxrTdCoFMpaw3mvXioHtEW`, target=production, READY, aliasError=null.
-- 기존 `all_except_custom_domains` Vercel Authentication 보호 유지. 인증 후 접근한다. 보호 해제나 공개 우회 링크를 배포하지 않았다.
+- 애플리케이션 commit: `2db2b77d0e14e982ab3373c0e7ac27493c64fb50` (main). 이후 보고서 전용 commit은 앱 산출물을 바꾸지 않는다.
+- 배포 ID: `dpl_B1n565j1NUWXSFtaUWCXvgSyNjy9`, production, READY, aliasError=null.
+- 팀 `team_NPAeLtWZKTzyFZjgL4TYmmRn`, 프로젝트 `prj_qFfWKbTQjxqkIU0vzDVGYNk31JNO`를 배포 전후 확인했다.
+- 기존 `all_except_custom_domains` Vercel Authentication 보호 유지. 보호 해제나 공개 우회 링크를 배포하지 않았다.
 
-## 확인한 실제 응답
+## 실제 서비스 응답 대조
 
-CLI의 인증된 `vercel curl`로 확인했다. `/` HTTP 200, Content-Type text/html, CSP·nosniff 보안 헤더 적용. HTML 바이트는 검증한 dist/index.html과 동일하다. `/content/catalog.json` 227,466 bytes가 로컬과 바이트 단위로 같으며 원본 135쪽·학습 단위 171개·팩 22개를 포함한다. `/content/regions/c10-u009.png` 원본 생태 피라미드 그림도 바이트 동일하다. 실제 서비스 alias의 `/sw.js`는 HTTP 200, application/javascript, Cache-Control=no-cache이며 로컬과 동일하다. Vercel API에서 READY와 서비스 alias 연결을 재확인한 뒤 promote를 완료했다.
+인증된 `vercel curl`로 서비스 alias의 HTML·catalog·worker·문항 원본 이미지·최신 JS를 내려받았다. 모두 HTTP 200이며 검증한 dist와 바이트 단위로 일치한다. catalog 569,480 bytes에 v1.1.0, 135쪽, 자료 452개, 문항·해설 개념 123개, 그래프 3개가 포함된다. 모든 문항 쪽의 관련 개념 연결도 실제 응답에서 검사했다.
 
-브라우저 E2E는 동일한 프로덕션 dist를 로컬 HTTPS 예외인 localhost에서 수행했다. 배포 후 SSO를 통과한 S26 Ultra의 실제 브라우저/PWA 설치는 수행하지 못했다. 이 구분을 유지한다.
+HTML에는 CSP·nosniff 헤더가 적용되고 `/sw.js`는 Cache-Control=no-cache이다. 정확한 크기와 SHA-256은 `deployment-verification.json`에 보존했다. API에서 실제 commit, READY, 서비스 alias 연결과 보호 설정을 재확인했다. CLI 결과에서 서비스 alias가 이미 연결되어 별도 중복 promote는 하지 않았다.
 
-## 배포 방식
+동일한 프로덕션 dist를 Windows Edge 모바일 viewport에서 검사했다. 도메인 20/20, 브라우저 18/18 통과. 배포 후 SSO를 통과한 S26 Ultra의 실제 브라우저/PWA 설치는 수행하지 못했다. 이 구분을 유지한다.
 
-Vercel CLI 65.1.0의 Windows 로컬 빌더가 의존성 설치 후 `spawn cmd.exe ENOENT`로 종료했다. 앱 자체 `npm run build`는 정상 통과했다. 공식 Build Output API v3에 따라 tools/prepare-vercel.mjs로 검증된 정적 dist를 .vercel/output/static에 묶고 헤더/라우트를 설정한 후 `deploy --prebuilt --prod --skip-domain` 및 검증 후 `promote`를 사용했다. 실제 배포에는 빌드 스크립트 실행이나 서버 함수가 필요하지 않다. 공개 Git에서 제외한 교재 자산은 보호된 정적 배포 파일에 포함했다. 비밀 환경 변수/CLI 인증 파일은 복사하지 않았다.
+## 배포 재현과 갱신
 
-원문·그림·교정 입력은 공개 저장소에 없다. 사용자 로컬의 비공개 자료 묶음을 복원해야 재현할 수 있다. 이후 Git 자동 배포를 사용하려면 자료를 별도로 안전하게 공급하는 단계가 필요하다. 현재 배포는 로컬 prebuilt 방식으로 재현한다. 다음 버전은 검증 후 promote하고 문제 시 이 배포로 되돌릴 수 있다.
+초기 Windows CLI 빌더는 `spawn cmd.exe ENOENT`로 종료되었으나 앱 자체 빌드는 정상 통과했다. 공식 Build Output API v3 방식으로 검증한 dist를 `tools/prepare-vercel.mjs`로 묶고 로컬 prebuilt 배포를 사용한다. 원문 자료·인증 파일은 공개 Git에 없다. 교재를 포함한 비공개 자료 팩을 복원한 체크아웃에서 README 절차를 따른다.
+
+자료 없는 공개 Git의 자동 빌드가 실패하던 문제는 `git.deploymentEnabled=false`로 자동 배포를 끄고 해결했다. 앱/자료를 함께 검사한 로컬 산출물을 배포한다. 이 설정은 인증 보호와 무관하다. 인증·환경 파일은 배포 산출물에 복사하지 않는다.
+
+기존 앱 사용자는 진행 중인 묶음을 마치고 앱을 다시 연 뒤 설정의 새 버전 적용을 사용한다. 이전 앱에서는 새 worker가 준비된 뒤 설정을 다시 열면 버튼이 나타난다. 갱신 후 자료 버전 v1.1.0을 확인하고 선택 팩을 새 버전으로 받는다. 기존 기록을 삭제할 필요가 없다. 초기 171개 단위의 ID·revision·원문·정답 구간은 회귀 검사로 보존했다.
+
+초기 v1.0 배포 기록: `dpl_5GndTJrxrTdCoFMpaw3mvXioHtEW`, https://project-integrated-338i0nv40-wondaes-projects-fe5c826b.vercel.app. 롤백 참고용이며 최신 서비스는 위 v1.1이다.
