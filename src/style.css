@@ -2052,3 +2052,138 @@ figcaption {
   padding: 16px;
   border-radius: 8px;
 }
+.source-guide {
+  font-size: 14px;
+  line-height: 1.8;
+  padding: 14px 16px;
+  background: var(--accent);
+  border-radius: 10px;
+}
+.page-concepts {
+  margin: 28px 0 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+}
+.page-concepts h2 {
+  font-size: 16px;
+}
+.page-concepts button {
+  display: block;
+  text-align: left;
+  font-size: 14px;
+  line-height: 1.7;
+  width: 100%;
+  padding: 12px 0;
+}
+.data-chart {
+  margin: 24px 0;
+}
+.data-chart figcaption {
+  text-align: left;
+  font-size: 15px;
+  color: var(--ink);
+  line-height: 1.7;
+}
+.data-chart ol {
+  padding: 0;
+  margin: 22px 0;
+  list-style: none;
+}
+.data-chart li {
+  display: grid;
+  grid-template-columns: minmax(58px, 0.8fr) minmax(20px, 1.5fr) minmax(
+      66px,
+      calc(var(--body-font) * 6.2)
+    );
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0;
+}
+.chart-label,
+.chart-value {
+  font-size: var(--body-font);
+  overflow-wrap: anywhere;
+}
+.chart-value .cloze {
+  max-width: 100%;
+}
+.chart-track {
+  height: 18px;
+  background: var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.chart-track > span {
+  display: block;
+  height: 100%;
+  background: var(--green);
+  border-radius: 4px;
+}
+.library-controls {
+  flex-wrap: wrap;
+}
+.library-controls select {
+  min-width: 120px;
+}
+.region-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0;
+}
+.region-tools button {
+  font-size: 14px;
+}
+.cropped-region {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+}
+.cropped-region > img {
+  position: absolute;
+  max-width: none;
+  height: auto;
+}
+.region-mask {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  font-size: 15px;
+  display: grid;
+  place-content: center;
+}
+.region-selector {
+  position: relative;
+  touch-action: none;
+  user-select: none;
+  cursor: crosshair;
+  margin: 16px 0;
+}
+.region-selector img {
+  width: 100%;
+  display: block;
+}
+.selection-outline {
+  position: absolute;
+  border: 3px solid #196e57;
+  background: #2f916933;
+  pointer-events: none;
+}
+.region-edges {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.region-edges label {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.region-edges input {
+  width: 100%;
+  min-height: 44px;
+  min-width: 0;
+}

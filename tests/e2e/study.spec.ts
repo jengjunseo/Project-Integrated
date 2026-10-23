@@ -77,6 +77,181 @@ async function reveal(page: Page) {
   await page.locator("[data-action=reveal]").click();
   await expect(page.locator(".rating-actions")).toBeVisible();
 }
+test("exam concepts are searchable and directly studyable with original page links", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.locator(".start-panel")).toBeVisible();
+  await page.locator("[data-action=library]").click();
+  await page.locator("#source-filter").selectOption("exam");
+  await page.locator("#search").fill("롤스의 원칙 간 우선순위");
+  await expect(page.locator(".unit-row")).toHaveCount(1);
+  await page.locator(".unit-row").click();
+  await expect(page.locator("dialog")).toContainText("평등한 자유의 원칙");
+  await page.locator("dialog [data-action=learn-unit]").click();
+  await expect(page.locator(".recall-card h1")).toContainText("우선순위");
+  if (await page.locator("[data-action=hide]").isVisible())
+    await page.locator("[data-action=hide]").click();
+  await expect(page.locator(".cloze-text")).toHaveText("");
+  await page.locator("[data-action=source]").click();
+  await expect(page.locator("dialog .kicker")).toContainText("PDF 50쪽");
+  await page.locator("dialog [data-action=close-modal]").click();
+  await page.locator("[data-action=reveal]").click();
+  await expect(page.locator(".cloze-text")).toHaveText("평등한 자유의 원칙");
+});
+test("full question image masks every repeated term, preserves zoom and works offline", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/");
+  await expect(page.locator(".start-panel")).toBeVisible();
+  const u = catalog.units.find(
+    (u: any) =>
+      u.sourceRole === "exam-source" && u.page === 5 && u.subject === "social",
+  );
+  await page.locator("[data-action=library]").click();
+  await page.locator("[data-action=library-tab][data-value=pages]").click();
+  await page.locator("[data-action=page][data-value=social-005]").click();
+  await expect(page.locator("dialog .page-concepts")).toContainText(
+    "인간의 고유한 기능",
+  );
+  await page.locator("dialog [data-action=learn-unit]").click();
+  await expect(page.locator(".recall-card")).toContainText(
+    "선지는 정오 판단 대상",
+  );
+  await page.locator("[data-action=hide]").click();
+  const count = u.targets.reduce(
+    (sum: number, t: any) => sum + (t.boxes?.length ?? 0),
+    0,
+  );
+  await expect(page.locator(".image-mask")).toHaveCount(count);
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+  });
+  await page.reload();
+  await expect
+    .poll(() => page.evaluate(() => !!navigator.serviceWorker.controller))
+    .toBe(true);
+  await context.setOffline(true);
+  await page.reload();
+  await expect(page.locator(".image-mask")).toHaveCount(count);
+  await page.locator("[data-action=zoom-image]").click();
+  await expect(page.locator("dialog .image-mask")).toHaveCount(count);
+  await page.locator("dialog [data-action=source-plus]").click();
+  await expect(page.locator("dialog #zoom-value")).toHaveText("150%");
+  await page.screenshot({ path: "test-results/expanded-question-masks.png" });
+  await page.locator("dialog [data-action=close-modal]").click();
+  await page.locator("[data-action=reveal]").click();
+  await expect(page.locator(".image-mask")).toHaveCount(0);
+  await context.setOffline(false);
+});
+test("native statistical chart keeps original values, year and masks on narrow screens", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.locator(".start-panel")).toBeVisible();
+  await page.locator("[data-action=library]").click();
+  await page.locator("#search").fill("국내 거주 외국인 주민 수 추이");
+  await page.locator(".unit-row").click();
+  await expect(page.locator("dialog .data-chart")).toContainText("2006–2022년");
+  await page.locator("dialog [data-action=learn-unit]").click();
+  await expect(page.locator(".data-chart li")).toHaveCount(9);
+  await page.setViewportSize({ width: 360, height: 780 });
+  const tracks = await page
+    .locator(".chart-track")
+    .evaluateAll((nodes) =>
+      nodes.map((el) => el.getBoundingClientRect().width),
+    );
+  expect(Math.max(...tracks) - Math.min(...tracks)).toBeLessThan(0.5);
+  const bars = await page
+    .locator(".chart-track > span")
+    .evaluateAll((nodes) =>
+      nodes.map((el) => el.getBoundingClientRect().width),
+    );
+  expect(bars[0] / bars[8]).toBeCloseTo(54 / 226, 2);
+  if (await page.locator("[data-action=hide]").isVisible())
+    await page.locator("[data-action=hide]").click();
+  const before = await page.locator(".cloze").first().boundingBox();
+  await expect(page.locator(".cloze-text").first()).toHaveText("");
+  const hidden = await page.locator(".cloze").first().boundingBox();
+  expect(hidden!.width).toBeCloseTo(before!.width, 0);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({ path: "test-results/expanded-chart-recall.png" });
+  await page.locator("[data-action=reveal]").click();
+  await expect(page.locator(".cloze-text").first()).toHaveText("54");
+  await expect(page.locator(".data-chart")).toContainText("226");
+  const after = await page.locator(".cloze").first().boundingBox();
+  expect(after!.width).toBeCloseTo(before!.width, 0);
+});
+test("any original paragraph or diagram can be selected, enlarged, fully masked and restored", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/");
+  await expect(page.locator(".start-panel")).toBeVisible();
+  await page.locator("[data-action=library]").click();
+  await page.locator("#source-filter").selectOption("pages");
+  await page.locator("#search").fill("본문 원문 전체 · PDF 1쪽");
+  await page.locator(".unit-row").click();
+  await page.locator("dialog [data-action=learn-unit]").click();
+  await page.locator("[data-action=region-select]").click();
+  const image = page.locator("dialog .region-selector"),
+    rect = await image.boundingBox();
+  await page.mouse.move(
+    rect!.x + rect!.width * 0.12,
+    rect!.y + rect!.height * 0.2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    rect!.x + rect!.width * 0.55,
+    rect!.y + rect!.height * 0.42,
+    { steps: 5 },
+  );
+  await page.mouse.up();
+  await page.locator('[data-region-edge="0"]').focus();
+  await page.keyboard.press("ArrowRight");
+  await page.locator("dialog [data-action=region-apply]").click();
+  await expect(page.locator(".phase-tag")).toHaveText("읽기");
+  await expect(page.locator(".cropped-region")).toBeVisible();
+  const before = await page.locator(".cropped-region").boundingBox();
+  await page.locator("[data-action=hide]").click();
+  await expect(page.locator(".region-mask")).toBeVisible();
+  await expect(page.locator("[data-answer]")).toHaveCount(0);
+  const box = (await readState(page)).session.imageRegion;
+  expect(box[0]).toBeCloseTo(0.13, 1);
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+  });
+  await page.reload();
+  await expect
+    .poll(() => page.evaluate(() => !!navigator.serviceWorker.controller))
+    .toBe(true);
+  await context.setOffline(true);
+  await page.reload();
+  await expect(page.locator(".region-mask")).toBeVisible();
+  expect((await readState(page)).session.imageRegion).toEqual(box);
+  await page.locator("[data-action=zoom-image]").click();
+  await expect(page.locator("dialog .region-mask")).toBeVisible();
+  await page.locator("dialog [data-action=close-modal]").click();
+  await page.locator("[data-action=reveal]").click();
+  await expect(page.locator(".region-mask")).toHaveCount(0);
+  const after = await page.locator(".cropped-region").boundingBox();
+  expect(after!.height).toBeCloseTo(before!.height, 0);
+  expect(after!.y).toBeCloseTo(before!.y, 0);
+  await page.screenshot({ path: "test-results/full-paragraph-restore.png" });
+  await page.locator("[data-action=rate][data-value=full]").click();
+  const state = await readState(page);
+  expect(
+    state.events.find((e: any) => e.kind === "rating").imageRegion,
+  ).toEqual(box);
+  await page.locator("[data-action=undo]").click();
+  expect((await readState(page)).session.imageRegion).toEqual(box);
+  await context.setOffline(false);
+});
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".start-panel")).toBeVisible();
@@ -89,17 +264,28 @@ test("first run → scope → read → hide → compare → rating, same-positio
   await scope(page, ["s01", "s02"]);
   await start(page);
   const title = await page.locator(".recall-card h1").innerText();
-  const before = await page.locator(".cloze").first().boundingBox();
+  const before = await page
+    .locator(".cloze,.masked-image")
+    .first()
+    .boundingBox();
   await page.locator("[data-action=hide]").click();
   await expect(page.locator(".phase-tag")).toHaveText("기억에서 꺼내기");
-  const hidden = await page.locator(".cloze").first().boundingBox();
+  const hidden = await page
+    .locator(".cloze,.masked-image")
+    .first()
+    .boundingBox();
   expect(hidden?.width).toBeCloseTo(before!.width, 0);
   const snapshot = await page.locator(".source-content").ariaSnapshot();
   expect(snapshot).toContain("가려진 구간");
-  expect(await page.locator(".cloze-text").first().innerText()).toBe("");
+  if (await page.locator(".cloze-text").count())
+    expect(await page.locator(".cloze-text").first().innerText()).toBe("");
+  else await expect(page.locator(".image-mask").first()).toBeVisible();
   await page.locator("[data-action=reveal]").click();
   await expect(page.locator(".phase-tag")).toHaveText("원문 대조");
-  const after = await page.locator(".cloze").first().boundingBox();
+  const after = await page
+    .locator(".cloze,.masked-image")
+    .first()
+    .boundingBox();
   expect(after?.y).toBeCloseTo(hidden!.y, 0);
   expect(after?.width).toBeCloseTo(hidden!.width, 0);
   await page.locator("[data-action=rate][data-value=full]").click();
@@ -371,10 +557,28 @@ test("100 prepared transitions record latency, no fatal errors or duplicated att
     prefs: { ...s.prefs, motion: false, output: "quick" },
     session: {
       id: "performance",
-      queue: [
-        ...catalog.units.filter((u: any) => u.type === "image"),
-        ...catalog.units.filter((u: any) => u.type !== "image"),
-      ]
+      queue: Array.from({ length: 20 }, (_, index) =>
+        ["text", "table", "diagram", "chart", "image"].map(
+          (type) =>
+            catalog.units.filter((u: any) => u.type === type)[
+              index % catalog.units.filter((u: any) => u.type === type).length
+            ],
+        ),
+      )
+        .flat()
+        .filter(
+          (u: any, index: number, items: any[]) =>
+            items.findIndex((other) => other.id === u.id) === index,
+        )
+        .concat(
+          catalog.units.filter(
+            (u: any) => !["diagram", "chart"].includes(u.type),
+          ),
+        )
+        .filter(
+          (u: any, index: number, items: any[]) =>
+            items.findIndex((other) => other.id === u.id) === index,
+        )
         .slice(0, 100)
         .map((u: any) => u.id),
       index: 0,

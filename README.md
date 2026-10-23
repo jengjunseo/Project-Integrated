@@ -4,6 +4,12 @@
 
 사용자의 추가 요청에 따라 KDI·기상청·한국과학창의재단·서울특별시교육청 자료 4개를 별도 출처의 보완 학습으로 포함했다. 교재 원문과 보완 설명을 혼동하지 않도록 표시한다.
 
+## v1.1 확장
+
+학습 자료 171→452개. 검수한 문장·표·흐름·그래프 321개(새 자료 153개), 이미지 학습 131개(전체 페이지 128개와 기존 크롭 3개)를 포함한다. 문항·해설 개념 123개도 기본 학습에 포함한다. 자료실에서 출처 유형으로 걸러 보거나 개별 자료를 바로 학습한다. 모든 문항 쪽은 관련 본문·제시문·해설과 연결한다.
+
+전체 페이지에서는 기본 용어 가림 외에 문단·표·그림을 직접 선택해 크게 읽고 통째로 가릴 수 있다. 선택 영역과 평가는 저장·오프라인·되돌리기·백업으로 보존한다. 사진 전체 보존과 모든 문장의 네이티브 전사는 다르며, 완전 전사를 주장하지 않는다. 자세한 전후 비교는 [확장 반영](docs/EXPANSION_REPORT.md)에 있다.
+
 ## 실행
 
 Node.js 24.x, npm, Edge 또는 Chromium 계열 브라우저. Python 3.11 이상은 자료 재처리에만 필요하다.
@@ -22,7 +28,7 @@ npm run test:e2e
 
 ## 자료 준비
 
-이 공개 저장소에는 교재 PDF·페이지 이미지·전사 데이터·인증 정보를 올리지 않는다. 비공개 자료 묶음에는 검수 입력과 생성된 public/content를 포함한다. 원본 PDF는 사용자가 제공한 파일을 그대로 보관한다.
+이 공개 저장소에는 교재 PDF·페이지 이미지·전사 데이터·인증 정보를 올리지 않는다. 비공개 자료 묶음에는 curated.py·expansion.py·검수된 regions.json·official.json, OCR·회전 후 OCR, 가림 좌표 증명 및 생성된 public/content를 포함한다. 원본 PDF는 사용자가 제공한 파일을 그대로 보관한다.
 
 ```powershell
 python -m pip install -r tools/requirements.txt
@@ -32,11 +38,11 @@ python tools/ingest.py --pdf-dir PDF폴더 --pages-dir 작업페이지폴더 --o
 npm run build
 ```
 
-Windows OCR은 한국어 언어 팩이 필요하다. OCR 출력은 정답으로 자동 승격하지 않는다. 전체 135쪽을 렌더링·분류했으며 **선택 구간 검수**를 완료했다. 교재 본문 전체의 전사·검수가 끝난 상태는 아니다. 상세 범위는 [콘텐츠 감사](docs/CONTENT_AUDIT.md)에 기록했다.
+Windows OCR은 한국어 언어 팩이 필요하다. OCR 출력은 정답으로 자동 승격하지 않는다. 전체 135쪽을 렌더링·분류했다. 대표 128쪽의 원문 전체 이미지 학습과 검수한 문장·표·그래프, 중복 6쪽의 연결, 사회 79쪽의 판독 해설 3개를 제공한다. 교재 본문 전체의 전사·검수가 끝난 상태는 아니다. 상세 범위는 [콘텐츠 감사](docs/CONTENT_AUDIT.md)에 기록했다.
 
 ## 배포
 
-대상은 기존 Vercel `wondaes-projects-fe5c826b/project-integrated`. 기존 배포 보호를 유지한다. 비공개 자료가 없는 Git 체크아웃을 그대로 자동 배포하면 콘텐츠 검증에서 실패한다. 아래 명령은 자료가 준비된 로컬 체크아웃에서 실행한다.
+대상은 기존 Vercel `wondaes-projects-fe5c826b/project-integrated`. 기존 배포 보호를 유지한다. 비공개 자료가 없는 Git 체크아웃을 그대로 자동 배포하면 콘텐츠 검증에서 실패하므로 vercel.json의 git.deploymentEnabled=false로 자동 배포를 끄고 검증된 자료를 포함한 로컬 배포를 사용한다. [Vercel 공식 설정](https://vercel.com/docs/project-configuration/git-configuration)을 따른다. 아래 명령은 자료가 준비된 로컬 체크아웃에서 실행한다.
 
 ```powershell
 vercel link --project project-integrated --scope wondaes-projects-fe5c826b --yes

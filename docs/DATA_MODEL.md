@@ -6,17 +6,21 @@
 
 `social/science` → `s01…s10/c01…c12` 소단원 → `s01-u001` 단위 → `-b1` 블록 → target ID 구조다. 현재 ID는 검수 입력의 소단원별 추가 순서로 부여한다. 기존 입력을 재정렬·삭제하지 않고 뒤에 추가한다. 기존 내용을 교정할 때는 ID를 유지하고 revision과 팩 version을 올리는 명시적 변경이 필요하다. 제목을 ID로 사용하지 않는다.
 
-블록 종류는 text/table/diagram/image. 표의 열 제목·행 머리글을 보존한다. 가림은 blockId, 정확한 expectedText, startUtf16/endUtf16으로 연결하며 빌드와 런타임에서 부분 문자열 일치를 검증한다. 그림의 box는 크롭 내부 0–1 좌표이고 sourceBox는 표시 페이지 내부 좌표다. 사회 74–81쪽은 시계 방향 90도 보정했고 manifest에 원본→표시 변환을 기록했다.
+블록 종류는 text/table/diagram/image/chart. chart는 rows·chartUnit·chartYear로 교재 수치와 시점을 보존한다. 표의 열 제목·행 머리글을 보존한다. 가림은 blockId, 정확한 expectedText, startUtf16/endUtf16으로 연결하며 빌드와 런타임에서 부분 문자열 일치를 검증한다. 그림의 box는 크롭 내부 0–1 좌표이고 sourceBox는 표시 페이지 내부 좌표다. boxes는 한 용어의 여러 출현 위치를 같은 target 번호로 가린다. 전체 페이지 이미지는 별도 재인코딩 없이 팩의 원본 페이지 파일을 참조한다. 새 명시적 ID는 s02-e005-01, s02-page005와 같고 초기 171개 ID·revision·원문·target을 SHA-256 fixture로 회귀 검사한다. 사회 74–81쪽은 시계 방향 90도 보정했고 manifest에 원본→표시 변환을 기록했다.
 
 공식 보완은 origin=official, page=0, sourceUrl/sourceLabel로 교재 원문과 분리한다. 출처 없는 텍스트를 원문으로 표시하지 않는다. 복잡한 수식·그림은 원본 영역 이미지를 함께 제공한다.
+
+sourceRole은 concept/exam-concept/reference/source-page/exam-source로 자료 유형을 분리한다. Page.unitIds/relatedUnitIds/duplicateOf는 전체 135쪽의 학습 연결과 중복을 명시한다. 누락된 질문 연결은 빌드가 실패한다. 원본의 오답 선지를 무조건 사실로 전사하지 않는다.
 
 ## 저장과 평가
 
 IndexedDB `original-recall` v1의 state/current에 schemaVersion=1 상태를 보관한다. 하나의 readwrite 트랜잭션이 events와 session snapshot을 함께 기록한다. revision 비교 후 쓰며 다른 탭의 변경은 BroadcastChannel과 트랜잭션 비교로 감지한다. 실패는 화면에 남고 재저장·백업을 제공한다. 입력은 180ms, 스크롤은 250ms 지연 저장하며 화면 숨김·나가기 때도 저장한다. 운영체제가 프로세스를 즉시 종료한 경우 마지막 지연 입력까지 보장할 수는 없다.
 
-세션은 queue/seed/index/phase/attemptId/answers/assistance/responseCommittedAt/revealedAt/scroll/zoom/output/mode/scope/packVersion을 담는다. 상태는 reading→recall→compare→다음 단위 또는 ended. 같은 attemptId의 평가는 한 번만 기록한다. 모르겠음의 임시 놓침은 동일 ID의 최종 자기평가로 교정한다. 되돌리기는 원본 이벤트를 삭제하지 않고 undo 이벤트로 취소하며 이전 입력 snapshot을 복원한다.
+세션은 선택 원문 영역 imageRegion(정규화 Box, 선택값) 및 queue/seed/index/phase/attemptId/answers/assistance/responseCommittedAt/revealedAt/scroll/zoom/output/mode/scope/packVersion을 담는다. 상태는 reading→recall→compare→다음 단위 또는 ended. 같은 attemptId의 평가는 한 번만 기록한다. 모르겠음의 임시 놓침은 동일 ID의 최종 자기평가로 교정한다. 되돌리기는 원본 이벤트를 삭제하지 않고 undo 이벤트로 취소하며 이전 입력 snapshot을 복원한다.
 
 rating은 missed/partial/full, literalMatch는 NFC+양끝 공백 제거 후 정확 일치, assistance는 source/hint/reveal이다. 의미 자동 채점은 없다. 노출(exposure), 고유 학습 단위, 시도 수, 도움 없는 full을 구분한다.
+
+imageRegion은 원본 페이지에서 사용자가 선택한 문단·표·그림이다. 그 영역을 확대 크롭하고 전부 가린다. 문자 정답을 추정하지 않으며 빠른 복원과 자기평가를 사용한다. rating/exposure에 영역 좌표를 보관하고 다음 원문에서는 초기화, undo에서는 이전 영역을 복원한다. 백업 검증은 잘못된 좌표를 거절한다. 기존 스키마 1 백업은 선택 필드가 없어도 그대로 읽는다.
 
 ## 복습
 

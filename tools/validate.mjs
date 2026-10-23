@@ -22,15 +22,41 @@ for (const u of c.units) {
       !t.expectedText
     )
       throw Error("Target mismatch " + u.id);
-    if (
-      t.box &&
-      !(
-        t.box.every((n) => n >= 0 && n <= 1) &&
-        t.box[0] < t.box[2] &&
-        t.box[1] < t.box[3]
+    for (const box of [...(t.box ? [t.box] : []), ...(t.boxes ?? [])])
+      if (
+        box.length !== 4 ||
+        !box.every((n) => Number.isFinite(n) && n >= 0 && n <= 1) ||
+        box[0] >= box[2] ||
+        box[1] >= box[3]
       )
+        throw Error("Box invalid " + u.id);
+    if (b.type === "image" && !t.box && !t.boxes?.length)
+      throw Error("Image mask missing " + u.id);
+    const overlaps = u.targets.some(
+      (other) =>
+        other !== t &&
+        other.blockId === t.blockId &&
+        Math.max(t.startUtf16, other.startUtf16) <
+          Math.min(t.endUtf16, other.endUtf16),
+    );
+    if (overlaps) throw Error("Overlapping answer spans " + u.id);
+  }
+  for (const b of u.blocks) {
+    if (!["text", "table", "diagram", "image", "chart"].includes(b.type))
+      throw Error("Unsupported block " + u.id);
+    if (
+      b.type === "chart" &&
+      (!b.chartUnit ||
+        !b.chartYear ||
+        !b.rows?.length ||
+        b.rows.some(
+          (row) =>
+            row.length !== 2 ||
+            !Number.isFinite(Number(row[1])) ||
+            Number(row[1]) < 0,
+        ))
     )
-      throw Error("Box invalid");
+      throw Error("Invalid chart " + u.id);
   }
   if (u.origin === "official" && !/^https:\/\//.test(u.sourceUrl))
     throw Error("Official source missing");
@@ -51,6 +77,12 @@ for (const p of c.packs) {
   if (p.bytes !== bytes) throw Error("Pack size invalid");
 }
 for (const p of c.pages) {
+  if (!p.unitIds?.length && !p.relatedUnitIds?.length)
+    throw Error("Page has no learning link: " + p.id);
+  if (![...p.unitIds, ...p.relatedUnitIds].every((id) => ids.has(id)))
+    throw Error("Invalid page crosswalk: " + p.id);
+  if (p.classification === "exercise" && !p.relatedUnitIds.length)
+    throw Error("Question concepts omitted: " + p.id);
   await stat("public/" + p.image.replace(/^\.\//, ""));
   await stat("public/" + p.thumbnail.replace(/^\.\//, ""));
 }

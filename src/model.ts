@@ -16,6 +16,9 @@ export interface Page {
   classification: "concept" | "exercise" | "reference" | "uncertain";
   status: string;
   rotation: number;
+  unitIds?: string[];
+  relatedUnitIds?: string[];
+  duplicateOf?: string;
 }
 export interface Target {
   id: string;
@@ -24,10 +27,11 @@ export interface Target {
   startUtf16: number;
   endUtf16: number;
   box?: Box;
+  boxes?: Box[];
 }
 export interface Block {
   id: string;
-  type: "text" | "table" | "diagram" | "image";
+  type: "text" | "table" | "diagram" | "image" | "chart";
   text: string;
   headers?: string[];
   rows?: string[][];
@@ -35,6 +39,8 @@ export interface Block {
   image?: string;
   bbox?: Box;
   caption?: string;
+  chartUnit?: string;
+  chartYear?: string;
 }
 export interface Unit {
   id: string;
@@ -51,6 +57,8 @@ export interface Unit {
   targets: Target[];
   status: "verified";
   origin: "pdf" | "official";
+  sourceRole?:
+    "concept" | "exam-concept" | "reference" | "exam-source" | "source-page";
   sourceUrl?: string;
   sourceLabel?: string;
   verifiedAt: string;
@@ -106,6 +114,7 @@ export interface Preferences {
   dailyNew: number;
 }
 export interface Attempt {
+  imageRegion?: Box;
   id: string;
   kind: "rating" | "undo" | "exposure";
   sessionId: string;
@@ -126,6 +135,7 @@ export interface Attempt {
   newUnit?: boolean;
 }
 export interface Session {
+  imageRegion?: Box;
   id: string;
   queue: string[];
   index: number;

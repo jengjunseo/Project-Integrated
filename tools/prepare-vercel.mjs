@@ -14,7 +14,11 @@ if (
 )
   throw Error("Unexpected Vercel project/team");
 const config = JSON.parse(await readFile("vercel.json", "utf8"));
-await mkdir(resolve(output, "static"), { recursive: true });
+const staticRoot = resolve(output, "static");
+if (staticRoot !== resolve(root, ".vercel/output/static"))
+  throw Error("Unexpected static output path");
+await rm(staticRoot, { recursive: true, force: true });
+await mkdir(staticRoot, { recursive: true });
 await cp("dist", resolve(output, "static"), { recursive: true, force: true });
 await rm(resolve(output, "builds.json"), { force: true }); // Discard failed CLI builder metadata; this package has its own reproducible build.
 await writeFile(

@@ -21,10 +21,125 @@ import {
   validBackup,
 } from "../src/domain.ts";
 import { emptyState } from "../src/model.ts";
+import { validateCatalog } from "../src/data.ts";
+import { createHash } from "node:crypto";
 import type { Attempt, Catalog, Unit } from "../src/model.ts";
 const catalog = JSON.parse(
   readFileSync("public/content/catalog.json", "utf8"),
 ) as Catalog;
+test("every source page and every question page has an actual learning crosswalk", () => {
+  validateCatalog(catalog);
+  for (const p of catalog.pages) {
+    assert(
+      (p.unitIds?.length ?? 0) + (p.relatedUnitIds?.length ?? 0) > 0,
+      p.id,
+    );
+    if (p.classification === "exercise")
+      assert(
+        p.relatedUnitIds?.some((id) =>
+          catalog.units.some(
+            (u) =>
+              u.id === id &&
+              !["source-page", "exam-source"].includes(u.sourceRole ?? ""),
+          ),
+        ),
+        p.id,
+      );
+  }
+  for (const ch of catalog.chapters)
+    assert(
+      catalog.units.some((u) => u.chapterId === ch.id && u.type !== "image"),
+    );
+});
+test("all original v1 question IDs, revisions, text and answer spans remain unchanged", () => {
+  const baseline = JSON.parse(
+    readFileSync("tests/fixtures/v1-unit-fingerprints.json", "utf8"),
+  );
+  const keys = [
+    "id",
+    "revision",
+    "subject",
+    "chapterId",
+    "family",
+    "title",
+    "type",
+    "page",
+    "sourceBox",
+    "blocks",
+    "targets",
+    "origin",
+  ];
+  const sorted = (value: any): any =>
+    Array.isArray(value)
+      ? value.map(sorted)
+      : value && typeof value === "object"
+        ? Object.fromEntries(
+            Object.keys(value)
+              .sort()
+              .map((k) => [k, sorted(value[k])]),
+          )
+        : value;
+  for (const [id, old] of Object.entries(baseline) as [string, any][]) {
+    const u = catalog.units.find((u) => u.id === id)!;
+    assert(u, id);
+    assert.equal(u.revision, old.revision);
+    const body = sorted(
+      Object.fromEntries(keys.map((k) => [k, (u as any)[k]])),
+    );
+    assert.equal(
+      createHash("sha256").update(JSON.stringify(body)).digest("hex"),
+      old.sha256,
+      id,
+    );
+  }
+});
+test("default random study includes reviewed exam concepts in both subjects", () => {
+  for (const subject of ["social", "science"] as const) {
+    const state = emptyState();
+    state.prefs.subject = subject;
+    state.prefs.chapters = catalog.chapters
+      .filter((ch) => ch.subject === subject)
+      .map((ch) => ch.id);
+    for (const u of catalog.units.filter(
+      (u) => u.subject === subject && u.sourceRole === "exam-concept",
+    ))
+      assert(
+        makeQueue({ ...catalog, units: [u] }, state, 42).includes(u.id),
+        u.id,
+      );
+  }
+});
+test("malformed repeated masks and chart values are rejected before rendering", () => {
+  const masks = structuredClone(catalog);
+  const t = masks.units
+    .find((u) => u.targets.some((t) => t.boxes))!
+    .targets.find((t) => t.boxes)!;
+  t.boxes = [[0.8, 0, 0.2, 1]];
+  assert.throws(() => validateCatalog(masks));
+  const charts = structuredClone(catalog);
+  charts.units.find((u) => u.type === "chart")!.blocks[0].rows![0][1] = "NaN";
+  assert.throws(() => validateCatalog(charts));
+});
+test("chosen original-image region survives rating and undo and clears on the next unit", () => {
+  const state = emptyState(),
+    u = catalog.units.find((u) => u.sourceRole === "source-page")!;
+  state.session = newSession(
+    [u.id, "s01-u001"],
+    state.prefs,
+    catalog.version,
+    [],
+    42,
+  );
+  state.session.phase = "compare";
+  state.session.imageRegion = [0.1, 0.2, 0.9, 0.6];
+  const next = applyRating(state, u, "full");
+  assert.deepEqual(next.events[0].imageRegion, [0.1, 0.2, 0.9, 0.6]);
+  assert.equal(next.session?.imageRegion, undefined);
+  assert.deepEqual(undo(next).session?.imageRegion, [0.1, 0.2, 0.9, 0.6]);
+  const malformed = structuredClone(next);
+  malformed.events[0].imageRegion = [1, 0, 0, 1];
+  assert.equal(validBackup(malformed), false);
+});
 const event = (over: Partial<Attempt> = {}): Attempt => ({
   id: crypto.randomUUID(),
   kind: "rating",

@@ -202,6 +202,9 @@ export function applyRating(state: State, u: Unit, rating: Rating): State {
   if (existing && !pending) return state;
   const old = state.events.find((e) => e.id === s.attemptId);
   const event: Attempt = {
+    ...(s.imageRegion
+      ? { imageRegion: [...s.imageRegion] as typeof s.imageRegion }
+      : {}),
     id: s.attemptId,
     kind: "rating",
     sessionId: s.id,
@@ -241,6 +244,7 @@ export function applyRating(state: State, u: Unit, rating: Rating): State {
     zoom: 1,
     focus: null,
     pendingEventId: undefined,
+    imageRegion: undefined,
     lastUndo: {
       eventId: event.id,
       session: { ...s, lastUndo: undefined, pendingEventId: undefined },
@@ -283,6 +287,15 @@ export function summary(events: Attempt[]) {
 export function validBackup(value: unknown): value is State {
   if (!value || typeof value !== "object") return false;
   const s = value as State;
+  const regionOK = (box: unknown) =>
+    box === undefined ||
+    (Array.isArray(box) &&
+      box.length === 4 &&
+      box.every(
+        (n) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1,
+      ) &&
+      box[0] < box[2] &&
+      box[1] < box[3]);
   if (
     !s.prefs ||
     !s.installed ||
@@ -300,6 +313,7 @@ export function validBackup(value: unknown): value is State {
   if (s.session) {
     const q = s.session;
     if (
+      !regionOK(q.imageRegion) ||
       typeof q.id !== "string" ||
       !Array.isArray(q.queue) ||
       !q.queue.every((id) => typeof id === "string") ||
@@ -339,6 +353,7 @@ export function validBackup(value: unknown): value is State {
     s.events.every(
       (e) =>
         !!e &&
+        regionOK(e.imageRegion) &&
         typeof e.id === "string" &&
         typeof e.unitId === "string" &&
         typeof e.sessionId === "string" &&
