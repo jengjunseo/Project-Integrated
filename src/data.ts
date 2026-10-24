@@ -45,8 +45,35 @@ export function validateCatalog(value: unknown): Catalog {
           throw Error("가림 좌표가 올바르지 않습니다.");
     }
     for (const b of u.blocks) {
-      if (!["text", "table", "diagram", "image", "chart"].includes(b.type))
+      if (
+        ![
+          "text",
+          "table",
+          "diagram",
+          "image",
+          "chart",
+          "network",
+          "pyramid",
+        ].includes(b.type)
+      )
         throw Error("자료 표시 형식이 올바르지 않습니다.");
+      if (
+        b.type === "network" &&
+        (b.nodes?.length !== 4 ||
+          !b.rows?.length ||
+          b.rows.some((row) => row.length !== 3))
+      )
+        throw Error("관계도 구성이 올바르지 않습니다.");
+      if (b.type === "pyramid" && !b.nodes?.length)
+        throw Error("영양 단계 구성이 올바르지 않습니다.");
+      if (
+        b.illustration &&
+        (!/^\.\/content\/[\w/.-]+$/.test(b.illustration.image) ||
+          !/^https:\/\//.test(b.illustration.sourceUrl) ||
+          !b.illustration.credit ||
+          !b.illustration.license)
+      )
+        throw Error("시각자료의 출처 또는 경로가 올바르지 않습니다.");
       if (
         b.type === "chart" &&
         (!b.rows?.length ||

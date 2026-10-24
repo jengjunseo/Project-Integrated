@@ -63,9 +63,12 @@ async function seed(page: Page, transform: (state: any) => any) {
   await expect(page.locator(".start-panel")).toBeVisible();
 }
 async function scope(page: Page, ids = ["s01"]) {
-  await page.getByRole("button", { name: "범위 선택", exact: false }).click();
-  for (const id of ids) await page.locator(`[data-chapter="${id}"]`).check();
-  await page.getByRole("button", { name: "선택한 범위 저장" }).click();
+  await page.locator("[data-action=scope]").click();
+  for (const el of await page.locator("[data-chapter]").all()) {
+    const id = await el.getAttribute("data-chapter");
+    await el.setChecked(ids.includes(id!));
+  }
+  await page.locator("[data-action=scope-done]").click();
 }
 async function start(page: Page) {
   await page.locator("[data-action=start]").click();
@@ -99,50 +102,49 @@ test("exam concepts are searchable and directly studyable with original page lin
   await page.locator("[data-action=reveal]").click();
   await expect(page.locator(".cloze-text")).toHaveText("평등한 자유의 원칙");
 });
-test("full question image masks every repeated term, preserves zoom and works offline", async ({
+test("original page is an optional reference, cached when opened, without scan learning gates", async ({
   page,
   context,
 }) => {
   await page.goto("/");
   await expect(page.locator(".start-panel")).toBeVisible();
-  const u = catalog.units.find(
-    (u: any) =>
-      u.sourceRole === "exam-source" && u.page === 5 && u.subject === "social",
-  );
+  await page.evaluate(() => navigator.serviceWorker.ready.then(() => true));
+  await expect
+    .poll(() => page.evaluate(() => !!navigator.serviceWorker.controller))
+    .toBe(true);
   await page.locator("[data-action=library]").click();
+  await expect(
+    page.locator("[data-action=library-tab][data-value=packs]"),
+  ).toHaveCount(0);
   await page.locator("[data-action=library-tab][data-value=pages]").click();
   await page.locator("[data-action=page][data-value=social-005]").click();
   await expect(page.locator("dialog .page-concepts")).toContainText(
     "인간의 고유한 기능",
   );
-  await page.locator("dialog [data-action=learn-unit]").click();
-  await expect(page.locator(".recall-card")).toContainText(
-    "선지는 정오 판단 대상",
-  );
-  await page.locator("[data-action=hide]").click();
-  const count = u.targets.reduce(
-    (sum: number, t: any) => sum + (t.boxes?.length ?? 0),
-    0,
-  );
-  await expect(page.locator(".image-mask")).toHaveCount(count);
-  await page.evaluate(async () => {
-    await navigator.serviceWorker.ready;
-  });
-  await page.reload();
+  await expect(page.locator("dialog [data-action=learn-unit]")).toHaveCount(0);
   await expect
-    .poll(() => page.evaluate(() => !!navigator.serviceWorker.controller))
+    .poll(() =>
+      page
+        .locator("dialog .source-canvas>img")
+        .evaluate(
+          (img: HTMLImageElement) => img.complete && img.naturalWidth > 0,
+        ),
+    )
     .toBe(true);
   await context.setOffline(true);
-  await page.reload();
-  await expect(page.locator(".image-mask")).toHaveCount(count);
-  await page.locator("[data-action=zoom-image]").click();
-  await expect(page.locator("dialog .image-mask")).toHaveCount(count);
+  await page.locator("dialog [data-action=close-modal]").click();
+  await page.locator("[data-action=page][data-value=social-005]").click();
+  await expect
+    .poll(() =>
+      page
+        .locator("dialog .source-canvas>img")
+        .evaluate(
+          (img: HTMLImageElement) => img.complete && img.naturalWidth > 0,
+        ),
+    )
+    .toBe(true);
   await page.locator("dialog [data-action=source-plus]").click();
   await expect(page.locator("dialog #zoom-value")).toHaveText("150%");
-  await page.screenshot({ path: "test-results/expanded-question-masks.png" });
-  await page.locator("dialog [data-action=close-modal]").click();
-  await page.locator("[data-action=reveal]").click();
-  await expect(page.locator(".image-mask")).toHaveCount(0);
   await context.setOffline(false);
 });
 test("native statistical chart keeps original values, year and masks on narrow screens", async ({
@@ -187,70 +189,54 @@ test("native statistical chart keeps original values, year and masks on narrow s
   const after = await page.locator(".cloze").first().boundingBox();
   expect(after!.width).toBeCloseTo(before!.width, 0);
 });
-test("any original paragraph or diagram can be selected, enlarged, fully masked and restored", async ({
+test("native sphere relationships mask every occurrence and keep readable text at 360px", async ({
   page,
-  context,
 }) => {
+  const u = catalog.units.find((u: any) => u.id === "c05-v014-spheres");
   await page.goto("/");
   await expect(page.locator(".start-panel")).toBeVisible();
-  await page.locator("[data-action=library]").click();
-  await page.locator("#source-filter").selectOption("pages");
-  await page.locator("#search").fill("본문 원문 전체 · PDF 1쪽");
-  await page.locator(".unit-row").click();
-  await page.locator("dialog [data-action=learn-unit]").click();
-  await page.locator("[data-action=region-select]").click();
-  const image = page.locator("dialog .region-selector"),
-    rect = await image.boundingBox();
-  await page.mouse.move(
-    rect!.x + rect!.width * 0.12,
-    rect!.y + rect!.height * 0.2,
-  );
-  await page.mouse.down();
-  await page.mouse.move(
-    rect!.x + rect!.width * 0.55,
-    rect!.y + rect!.height * 0.42,
-    { steps: 5 },
-  );
-  await page.mouse.up();
-  await page.locator('[data-region-edge="0"]').focus();
-  await page.keyboard.press("ArrowRight");
-  await page.locator("dialog [data-action=region-apply]").click();
-  await expect(page.locator(".phase-tag")).toHaveText("읽기");
-  await expect(page.locator(".cropped-region")).toBeVisible();
-  const before = await page.locator(".cropped-region").boundingBox();
+  await seed(page, (s) => ({
+    ...s,
+    prefs: { ...s.prefs, subject: "science" },
+    session: {
+      id: "spheres",
+      queue: [u.id],
+      index: 0,
+      seed: 1,
+      phase: "reading",
+      attemptId: "spheres-1",
+      answers: [],
+      assistance: [],
+      output: "quick",
+      mode: "random",
+      scope: [u.chapterId],
+      packVersion: catalog.version,
+      responseCommittedAt: null,
+      revealedAt: null,
+      unknown: false,
+      scroll: 0,
+      zoom: 1,
+      focus: null,
+      startedAt: new Date().toISOString(),
+    },
+  }));
+  await page.locator("[data-action=resume]").click();
+  await expect(page.locator(".system-map li")).toHaveCount(4);
+  await expect(page.locator(".source-content img")).toHaveCount(0);
   await page.locator("[data-action=hide]").click();
-  await expect(page.locator(".region-mask")).toBeVisible();
-  await expect(page.locator("[data-answer]")).toHaveCount(0);
-  const box = (await readState(page)).session.imageRegion;
-  expect(box[0]).toBeCloseTo(0.13, 1);
-  await page.evaluate(async () => {
-    await navigator.serviceWorker.ready;
-  });
-  await page.reload();
-  await expect
-    .poll(() => page.evaluate(() => !!navigator.serviceWorker.controller))
-    .toBe(true);
-  await context.setOffline(true);
-  await page.reload();
-  await expect(page.locator(".region-mask")).toBeVisible();
-  expect((await readState(page)).session.imageRegion).toEqual(box);
-  await page.locator("[data-action=zoom-image]").click();
-  await expect(page.locator("dialog .region-mask")).toBeVisible();
-  await page.locator("dialog [data-action=close-modal]").click();
-  await page.locator("[data-action=reveal]").click();
-  await expect(page.locator(".region-mask")).toHaveCount(0);
-  const after = await page.locator(".cropped-region").boundingBox();
-  expect(after!.height).toBeCloseTo(before!.height, 0);
-  expect(after!.y).toBeCloseTo(before!.y, 0);
-  await page.screenshot({ path: "test-results/full-paragraph-restore.png" });
-  await page.locator("[data-action=rate][data-value=full]").click();
-  const state = await readState(page);
+  await expect(page.locator(".system-map .cloze")).toHaveCount(4);
+  expect(await page.locator(".system-map").ariaSnapshot()).not.toMatch(
+    /기권|수권|지권|생물권/,
+  );
+  await page.setViewportSize({ width: 360, height: 800 });
   expect(
-    state.events.find((e: any) => e.kind === "rating").imageRegion,
-  ).toEqual(box);
-  await page.locator("[data-action=undo]").click();
-  expect((await readState(page)).session.imageRegion).toEqual(box);
-  await context.setOffline(false);
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.locator("[data-action=reveal]").click();
+  await expect(page.locator(".system-map")).toContainText("생물권");
+  await page.screenshot({ path: "test-results/native-spheres.png" });
 });
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
@@ -348,7 +334,7 @@ test("unknown is one provisional failure and corrections do not double count", a
     "reveal",
   );
 });
-test("installed pack works after full network cutoff and cold reload", async ({
+test("automatic study cache survives network cutoff and cold reload without manual downloads", async ({
   page,
   context,
 }) => {
@@ -364,6 +350,18 @@ test("installed pack works after full network cutoff and cold reload", async ({
   await expect
     .poll(() => page.evaluate(() => !!navigator.serviceWorker.controller))
     .toBe(true);
+  await page.locator("[data-action=source]").click();
+  await expect
+    .poll(() =>
+      page
+        .locator("dialog .source-canvas>img")
+        .evaluate(
+          (img: HTMLImageElement) => img.complete && img.naturalWidth > 0,
+        ),
+    )
+    .toBe(true);
+  await page.locator("dialog [data-action=close-modal]").click();
+  expect(Object.keys((await readState(page)).installed)).toHaveLength(0);
   await context.setOffline(true);
   await page.reload();
   await expect(page.locator(".recall-card")).toBeVisible();
@@ -384,22 +382,34 @@ test("installed pack works after full network cutoff and cold reload", async ({
   ).toHaveLength(2);
   await context.setOffline(false);
 });
-test("failed pack integrity never becomes ready and retry succeeds", async ({
+test("first run includes both complete subjects and starts without requesting original page packs", async ({
   page,
   context,
 }) => {
-  await context.route("**/content/pages/social-001.jpg", (route) =>
-    route.fulfill({ status: 200, body: "corrupted" }),
+  const requested: string[] = [];
+  await context.route("**/content/pages/**", (route) => {
+    requested.push(route.request().url());
+    return route.abort();
+  });
+  const s = await readState(page);
+  expect(s.prefs.chapters).toHaveLength(catalog.chapters.length);
+  await expect(page.locator(".scope-summary")).toContainText("전체 범위");
+  await page.locator("[data-action=scope]").click();
+  await expect(page.locator("[data-chapter]:checked")).toHaveCount(10);
+  await expect(page.getByText("선택한 범위 저장", { exact: true })).toHaveCount(
+    0,
   );
-  await scope(page);
-  await page.locator("[data-action=start]").click();
-  await expect(page.getByRole("status")).toContainText("손상");
-  let s = await readState(page);
-  expect(s.installed.s01).toBeUndefined();
-  await context.unroute("**/content/pages/social-001.jpg");
+  await page.locator("[data-action=scope-done]").click();
   await start(page);
-  s = await readState(page);
-  expect(s.installed.s01).toBe(catalog.version);
+  expect(requested).toHaveLength(0);
+  expect(Object.keys((await readState(page)).installed)).toHaveLength(0);
+  const queue = (await readState(page)).session.queue;
+  expect(
+    queue.every(
+      (id: string) =>
+        catalog.units.find((u: any) => u.id === id).studyEnabled !== false,
+    ),
+  ).toBe(true);
 });
 test("backup downloaded, import merges twice without duplicate events or settings loss", async ({
   page,
@@ -447,33 +457,25 @@ test("another active tab must refresh before overwriting new state", async ({
   ).toHaveClass("selected");
   await second.close();
 });
-test("table, diagram, image mask, dark and 28px remain usable without page overflow", async ({
+test("native pyramid and inline official illustration work in dark mode at 28px", async ({
   page,
 }) => {
+  const u = catalog.units.find((u: any) => u.type === "pyramid");
   await seed(page, (s) => ({
     ...s,
-    prefs: {
-      ...s.prefs,
-      subject: "science",
-      chapters: ["c04", "c11"],
-      font: 28,
-      theme: "dark",
-      batch: 20,
-    },
+    prefs: { ...s.prefs, subject: "science", font: 28, theme: "dark" },
     session: {
       id: "visual",
-      queue: catalog.units
-        .filter((u: any) => ["image", "diagram", "table"].includes(u.type))
-        .map((u: any) => u.id),
+      queue: [u.id, "official-visual-chains"],
       index: 0,
       seed: 1,
-      phase: "recall",
+      phase: "reading",
       attemptId: "visual-1",
       answers: [],
       assistance: [],
       output: "quick",
       mode: "random",
-      scope: ["c04", "c11"],
+      scope: ["c04", "c10"],
       packVersion: catalog.version,
       responseCommittedAt: null,
       revealedAt: null,
@@ -485,36 +487,26 @@ test("table, diagram, image mask, dark and 28px remain usable without page overf
     },
   }));
   await page.locator("[data-action=resume]").click();
-  await expect(page.locator(".table-wrapper")).toBeVisible();
+  await expect(page.locator(".energy-pyramid li")).toHaveCount(4);
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
-  await page.screenshot({ path: "test-results/mobile-table-dark.png" });
-  await page.locator("[data-action=leave-study]").click();
-  const imageIndex = catalog.units
-    .filter((u: any) => ["image", "diagram", "table"].includes(u.type))
-    .findIndex((u: any) => u.type === "image");
-  await seed(page, (s) => ({
-    ...s,
-    session: {
-      ...s.session,
-      index: imageIndex,
-      phase: "recall",
-      attemptId: "visual-img",
-    },
-  }));
-  await page.locator("[data-action=resume]").click();
-  await page.locator("[data-action=zoom-image]").click();
-  await expect(page.locator("dialog .image-mask").first()).toBeVisible();
-  const mask = await page.locator("dialog .image-mask").first().boundingBox();
+  await page.screenshot({ path: "test-results/native-pyramid-dark.png" });
+  await reveal(page);
+  await page.locator("[data-action=rate][data-value=full]").click();
+  await expect(page.locator(".inline-illustration img")).toBeVisible();
+  await expect(page.locator(".inline-illustration")).toContainText("CC BY 4.0");
+  await page.locator("[data-action=zoom-illustration]").click();
   await page.locator("dialog [data-action=source-plus]").click();
-  const larger = await page.locator("dialog .image-mask").first().boundingBox();
-  expect(larger!.width).toBeGreaterThan(mask!.width);
-  await page.screenshot({ path: "test-results/mobile-image-mask.png" });
+  await expect(page.locator("dialog #zoom-value")).toHaveText("150%");
   await page.locator("dialog [data-action=close-modal]").click();
-  await expect(page.locator(".image-mask").first()).toBeVisible();
+  await page.locator("[data-action=hide]").click();
+  await expect(page.locator(".figure-cover")).toBeVisible();
+  await expect(page.locator("[data-action=zoom-illustration]")).toBeDisabled();
+  await page.locator("[data-action=reveal]").click();
+  await expect(page.locator(".inline-illustration img")).toBeVisible();
 });
 test("storage failure is visible and can be retried without silent progression", async ({
   page,
@@ -558,7 +550,7 @@ test("100 prepared transitions record latency, no fatal errors or duplicated att
     session: {
       id: "performance",
       queue: Array.from({ length: 20 }, (_, index) =>
-        ["text", "table", "diagram", "chart", "image"].map(
+        ["text", "table", "diagram", "chart", "network", "pyramid"].map(
           (type) =>
             catalog.units.filter((u: any) => u.type === type)[
               index % catalog.units.filter((u: any) => u.type === type).length
@@ -572,7 +564,9 @@ test("100 prepared transitions record latency, no fatal errors or duplicated att
         )
         .concat(
           catalog.units.filter(
-            (u: any) => !["diagram", "chart"].includes(u.type),
+            (u: any) =>
+              u.studyEnabled !== false &&
+              !["diagram", "chart"].includes(u.type),
           ),
         )
         .filter(
@@ -662,23 +656,28 @@ test("100 prepared transitions record latency, no fatal errors or duplicated att
   });
 });
 
-test("empty scope is explicit; interrupted pack remains incomplete and resumes", async ({
+test("range exclusions save immediately on close and survive reload, including empty scope", async ({
   page,
-  context,
 }) => {
-  await page.locator("[data-action=start]").click();
-  await expect(page.locator("dialog")).toBeVisible();
+  await page.locator("[data-action=scope]").click();
+  await page.locator("[data-chapter=s01]").uncheck();
   await page.locator("dialog [data-action=close-modal]").click();
-  await scope(page);
-  await context.route("**/content/pages/social-002.jpg", (route) =>
-    route.abort("internetdisconnected"),
+  await expect(page.locator(".scope-summary")).toContainText("9 / 10");
+  await page.reload();
+  await expect(page.locator(".start-panel")).toBeVisible();
+  expect((await readState(page)).prefs.chapters).not.toContain("s01");
+  await page.locator("[data-action=scope]").click();
+  await page.locator("[data-action=scope-none]").click();
+  await page.locator("[data-action=scope-done]").click();
+  await page.reload();
+  await expect(page.locator(".scope-summary")).toContainText(
+    "모든 범위가 해제",
   );
   await page.locator("[data-action=start]").click();
-  await expect(page.getByRole("status")).toContainText(/중단|실패/);
-  expect((await readState(page)).installed.s01).toBeUndefined();
-  await context.unroute("**/content/pages/social-002.jpg");
+  await expect(page.locator("dialog")).toBeVisible();
+  await page.locator("[data-action=scope-all]").click();
+  await page.locator("[data-action=scope-done]").click();
   await start(page);
-  expect((await readState(page)).installed.s01).toBe(catalog.version);
 });
 
 test("table horizontal position survives reveal; original assistance stays separate", async ({
@@ -755,4 +754,40 @@ test("360px and landscape retain usable controls and no document overflow", asyn
     expect(r!.height).toBeGreaterThanOrEqual(56);
     expect(r!.y + r!.height).toBeLessThanOrEqual(size.height);
   }
+});
+
+test("all official illustrations are automatically available offline before opening any chapter", async ({
+  page,
+  context,
+}) => {
+  await page.evaluate(() => navigator.serviceWorker.ready.then(() => true));
+  await expect
+    .poll(() => page.evaluate(() => !!navigator.serviceWorker.controller))
+    .toBe(true);
+  await context.setOffline(true);
+  await page.locator("[data-action=library]").click();
+  await page.locator("[data-action=subject][data-value=science]").click();
+  const figures = catalog.units.filter((u: any) =>
+    u.blocks.some((b: any) => b.illustration),
+  );
+  expect(figures).toHaveLength(5);
+  for (const u of figures) {
+    await page.locator("#search").fill(u.title);
+    await page.locator(`.unit-row[data-value="${u.id}"]`).click();
+    await expect
+      .poll(() =>
+        page
+          .locator("dialog .inline-illustration img")
+          .evaluate(
+            (img: HTMLImageElement) => img.complete && img.naturalWidth > 0,
+          ),
+      )
+      .toBe(true);
+    await expect(
+      page.locator("dialog .inline-illustration figcaption a").first(),
+    ).toHaveAttribute("href", /^https:/);
+    await page.locator("dialog [data-action=close-modal]").click();
+  }
+  expect(Object.keys((await readState(page)).installed)).toHaveLength(0);
+  await context.setOffline(false);
 });

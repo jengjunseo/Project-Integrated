@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { resolve, extname } from "node:path";
 
-test("new worker waits during a session and preserves records when explicitly applied", async ({
+test("worker waits during study, updates automatically while idle, and preserves records", async ({
   page,
 }) => {
   let generation = 1;
@@ -20,11 +20,12 @@ test("new worker waits during a session and preserves records when explicitly ap
     try {
       const file = path === root ? resolve(root, "index.html") : path;
       let data = await readFile(file);
-      if (file.endsWith("sw.js"))
+      if (file.endsWith("sw.js")) {
         data = Buffer.concat([
           data,
           Buffer.from(`\n// test generation ${generation}`),
         ]);
+      }
       res.setHeader(
         "Content-Type",
         (
@@ -120,6 +121,41 @@ test("new worker waits during a session and preserves records when explicitly ap
         }),
     );
     expect(count).toBeGreaterThan(0);
+    expect(
+      await page.evaluate(
+        async () =>
+          !!(await navigator.serviceWorker.getRegistration())?.waiting,
+      ),
+    ).toBe(false);
+    await page.evaluate(async () => {
+      await (await navigator.serviceWorker.getRegistration())!.update();
+    });
+    // Change the server before navigation: boot registration and an explicit
+    // update() can otherwise coalesce into the same still-running check.
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        "test-document-loads",
+        String(Number(localStorage.getItem("test-document-loads") ?? 0) + 1),
+      );
+    });
+    generation = 3;
+    await page.goto(`http://127.0.0.1:${address.port}/`);
+    await expect
+      .poll(async () => {
+        try {
+          return await page.evaluate(() =>
+            Number(localStorage.getItem("test-document-loads")),
+          );
+        } catch (error) {
+          if (
+            (error as Error).message.includes("Execution context was destroyed")
+          )
+            return 0;
+          throw error;
+        }
+      })
+      .toBeGreaterThanOrEqual(2);
+    await expect(page.locator(".start-panel")).toBeVisible();
     expect(
       await page.evaluate(
         async () =>

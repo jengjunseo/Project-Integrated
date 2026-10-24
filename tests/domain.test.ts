@@ -19,6 +19,8 @@ import {
   summary,
   undo,
   validBackup,
+  upgradeScope,
+  upgradeStudySession,
 } from "../src/domain.ts";
 import { emptyState } from "../src/model.ts";
 import { validateCatalog } from "../src/data.ts";
@@ -364,4 +366,47 @@ test("malformed backup events, session, and time zone are rejected without mutat
     !validBackup({ ...s, session: { id: "broken", queue: [], index: 4 } }),
   );
   assert.deepEqual(s.events, []);
+});
+
+test("scope upgrade selects every chapter once and preserves later exclusions", () => {
+  const old = emptyState();
+  old.prefs.chapters = ["s01"];
+  const upgraded = upgradeScope(old, catalog);
+  assert.equal(upgraded.prefs.chapters.length, catalog.chapters.length);
+  assert.equal(old.prefs.chapters.length, 1);
+  upgraded.prefs.chapters = [];
+  assert.equal(upgradeScope(upgraded, catalog), upgraded);
+  for (const subject of ["social", "science"] as const) {
+    const state = upgradeScope(emptyState(), catalog);
+    state.prefs.subject = subject;
+    const queue = makeQueue(catalog, state, 42);
+    assert(queue.length > 0);
+    assert(
+      queue.every(
+        (id) => catalog.units.find((u) => u.id === id)?.studyEnabled !== false,
+      ),
+    );
+  }
+});
+test("old photo sessions migrate unplayed entries while retaining historical attempts", () => {
+  const photo = catalog.units.find((u) => u.sourceRole === "source-page")!;
+  const native = catalog.units.find((u) => u.studyEnabled !== false)!;
+  const state = emptyState();
+  state.session = newSession(
+    [photo.id, native.id],
+    state.prefs,
+    "v1.1.0",
+    state.events,
+    42,
+  );
+  const migrated = upgradeStudySession(state, catalog);
+  assert.notEqual(migrated.session?.queue[0], photo.id);
+  assert.equal(migrated.events, state.events);
+  assert.equal(migrated.session?.queue.at(-1), native.id);
+  assert(
+    migrated.session?.queue.every(
+      (id) => catalog.units.find((u) => u.id === id)?.studyEnabled !== false,
+    ),
+  );
+  assert(validBackup(migrated));
 });

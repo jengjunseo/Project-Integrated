@@ -102,7 +102,8 @@ export function makeQueue(
     (u) =>
       u.subject === p.subject &&
       p.chapters.includes(u.chapterId) &&
-      u.status === "verified",
+      u.status === "verified" &&
+      u.studyEnabled !== false,
   );
   if (p.mode === "review") {
     const events = ratings(s.events),
@@ -388,5 +389,74 @@ export function mergeBackup(current: State, incoming: State) {
     ),
     session: current.session,
     installed: current.installed,
+  };
+}
+
+/** One-time scope upgrade; later explicit deselections, including none, persist. */
+export function upgradeScope(state: State, catalog: Catalog): State {
+  if (state.prefs.scopeVersion === 2) return state;
+  return {
+    ...state,
+    prefs: {
+      ...state.prefs,
+      scopeVersion: 2,
+      chapters: catalog.chapters.map((chapter) => chapter.id),
+    },
+  };
+}
+
+/** Preserve past attempts while replacing unplayed scan cards with linked native passages. */
+export function upgradeStudySession(state: State, catalog: Catalog): State {
+  const session = state.session;
+  if (!session || session.phase === "ended") return state;
+  const units = new Map(catalog.units.map((unit) => [unit.id, unit]));
+  const remaining = session.queue.slice(session.index);
+  if (!remaining.some((id) => units.get(id)?.studyEnabled === false))
+    return state;
+  const prefix = session.queue.slice(0, session.index);
+  const used = new Set([
+    ...prefix,
+    ...remaining.filter((id) => units.get(id)?.studyEnabled !== false),
+  ]);
+  const next: string[] = [];
+  for (const id of remaining) {
+    const unit = units.get(id);
+    if (unit?.studyEnabled !== false) {
+      next.push(id);
+      continue;
+    }
+    const page = catalog.pages.find(
+      (page) => page.documentId === unit.subject && page.pdfPage === unit.page,
+    );
+    const replacement = page?.relatedUnitIds?.find(
+      (id) => units.get(id)?.studyEnabled !== false && !used.has(id),
+    );
+    if (replacement) {
+      next.push(replacement);
+      used.add(replacement);
+    }
+  }
+  const changedCurrent = next[0] !== remaining[0];
+  return {
+    ...state,
+    session: {
+      ...session,
+      queue: [...prefix, ...next],
+      packVersion: catalog.version,
+      ...(changedCurrent
+        ? {
+            phase: next.length ? "reading" : "ended",
+            answers: [],
+            assistance: [],
+            imageRegion: undefined,
+            attemptId: uid(),
+            pendingEventId: undefined,
+            unknown: false,
+            responseCommittedAt: null,
+            revealedAt: null,
+            scroll: 0,
+          }
+        : {}),
+    },
   };
 }

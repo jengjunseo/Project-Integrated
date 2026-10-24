@@ -42,7 +42,29 @@ for (const u of c.units) {
     if (overlaps) throw Error("Overlapping answer spans " + u.id);
   }
   for (const b of u.blocks) {
-    if (!["text", "table", "diagram", "image", "chart"].includes(b.type))
+    if (b.illustration) {
+      if (
+        !b.illustration.credit ||
+        !b.illustration.license ||
+        !/^https:\/\//.test(b.illustration.sourceUrl)
+      )
+        throw Error("Illustration attribution missing");
+      await stat("public/" + b.illustration.image.replace(/^\.\//, ""));
+    }
+    if (u.studyEnabled !== false && b.type === "image")
+      throw Error("Scan card remains in default study: " + u.id);
+
+    if (
+      ![
+        "text",
+        "table",
+        "diagram",
+        "image",
+        "chart",
+        "network",
+        "pyramid",
+      ].includes(b.type)
+    )
       throw Error("Unsupported block " + u.id);
     if (
       b.type === "chart" &&

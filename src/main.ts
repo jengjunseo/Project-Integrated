@@ -4,7 +4,6 @@ import type {
   Box,
   Block,
   Catalog,
-  Pack,
   Rating,
   Session,
   State,
@@ -26,9 +25,11 @@ import {
   uid,
   undo,
   validBackup,
+  upgradeScope,
+  upgradeStudySession,
 } from "./domain";
 import { channel, openDB, readState, writeState } from "./persistence";
-import { installPack, registerWorker, removePack, verifyPack } from "./offline";
+import { registerWorker } from "./offline";
 import { validateCatalog } from "./data";
 
 const root = document.querySelector<HTMLDivElement>("#app")!;
@@ -44,9 +45,9 @@ let busy = false,
   libraryTab = "units",
   modal: HTMLDialogElement | null = null;
 let conflict = false,
+  offlineReady = false,
   draftTimer: ReturnType<typeof setTimeout>,
   registration: ServiceWorkerRegistration | null = null;
-const downloads = new Map<string, { progress: number; error?: string }>();
 let selectedRegion: Box = [0.02, 0.1, 0.98, 0.45];
 const names = { social: "통합사회", science: "통합과학" };
 const sourceName = (u: Unit) =>
@@ -75,7 +76,9 @@ function pageLinks(u: Unit) {
 function linkedUnits(ids: string[], exclude?: string) {
   const units = ids
     .map((id) => catalog.units.find((u) => u.id === id))
-    .filter((u): u is Unit => !!u && u.id !== exclude && !isPageUnit(u));
+    .filter(
+      (u): u is Unit => !!u && u.id !== exclude && u.studyEnabled !== false,
+    );
   return units.length
     ? `<aside class="page-concepts"><h2>이 쪽과 연결된 개념·해설</h2>${units.map((u) => button(esc(u.title), "preview-unit", "text-button", `data-value="${u.id}"`)).join("")}</aside>`
     : "";
@@ -178,27 +181,23 @@ function homeHTML() {
     selected = catalog.chapters.filter(
       (c) => p.chapters.includes(c.id) && c.subject === p.subject,
     ),
-    units = catalog.units.filter((u) =>
-      selected.some((c) => c.id === u.chapterId),
+    units = catalog.units.filter(
+      (u) =>
+        u.studyEnabled !== false && selected.some((c) => c.id === u.chapterId),
     ),
     s = state.session,
     canResume = s && s.phase !== "ended";
-  const ready = selected.filter(
-    (c) => state.installed[c.id] === catalog.version,
-  ).length;
-  return `${message()}<div class="page-eyebrow">나의 작은 학습실 <span>READ · RECALL · RESTORE</span></div><section class="home-intro"><div><p class="kicker">한 구절씩, 내 기억으로.</p><h1>읽은 문장을<br>꺼낼 수 있는 문장으로.</h1><p class="intro-text">읽고, 가리고, 스스로 복원해 보세요.<br>원문은 언제나 같은 자리에 있습니다.</p></div><div class="paper-art" aria-hidden="true"><div class="paper-back"></div><div class="paper-front"><i></i><i></i><b>기억에서</b><span></span><b>꺼내는 연습</b><i></i><i></i><em>↗</em></div></div></section><section class="start-panel"><div class="section-top"><h2>지금, 이어지는 공부</h2><span class="tiny">로그인 없이 · 기기 내 저장</span></div>${subjectControl()}<div class="scope-summary"><span class="label">선택한 학습 범위</span><strong>${selected.length ? selected.map((c) => esc(c.title)).join(" · ") : "아직 선택한 소단원이 없습니다"}</strong><span class="tiny">학습 자료 ${units.length}개 · 문항·해설 포함 ${selected.length ? `· 오프라인 준비 ${ready}/${selected.length}` : ""}</span>${button("범위 선택 " + icon("arrow"), "scope", "text-button")}</div>${button(`${canResume ? "이어서 하기" : "랜덤으로 시작"} ${icon("arrow")}`, canResume ? "resume" : "start", "primary start-button", busy ? "disabled" : "")}${canResume ? `<p class="micro">${esc(names[catalog.units.find((u) => u.id === s.queue[s.index])?.subject ?? p.subject])} · ${s.index + 1}/${s.queue.length} · 입력과 가림 상태가 저장되어 있습니다.</p>` : ""}<div class="session-options"><fieldset><legend>복원 방식</legend><div class="segmented">${button("빠른 복원", "output", p.output === "quick" ? "selected" : "", 'data-value="quick"')}${button("직접 복원", "output", p.output === "typed" ? "selected" : "", 'data-value="typed"')}</div></fieldset><fieldset><legend>출제 방식</legend><select aria-label="출제 방식" id="mode"><option value="random" ${p.mode === "random" ? "selected" : ""}>자유 랜덤</option><option value="review" ${p.mode === "review" ? "selected" : ""}>오늘 복습</option></select></fieldset><fieldset><legend>한 묶음</legend><select aria-label="한 묶음" id="batch">${[5, 10, 20].map((n) => `<option ${p.batch === n ? "selected" : ""} value="${n}">${n}개</option>`).join("")}</select></fieldset></div><p class="micro">${p.mode === "review" ? `기한이 된 원문부터 복습합니다. 새 원문은 두 과목 합쳐 하루 ${p.dailyNew}개까지.` : "선택한 범위 안에서 섞어 출제합니다. 자유 랜덤은 복습 날짜를 바꾸지 않습니다."}</p></section><section class="quiet-footer"><span>${icon("check")} 원문과 출처를 함께</span><span>${icon("download")} 선택한 범위만 오프라인으로</span></section>`;
+  const total = catalog.chapters.filter((c) => c.subject === p.subject).length;
+  return `${message()}<div class="page-eyebrow">나의 작은 학습실 <span>READ · RECALL · RESTORE</span></div><section class="home-intro"><div><p class="kicker">한 구절씩, 내 기억으로.</p><h1>읽은 문장을<br>꺼낼 수 있는 문장으로.</h1><p class="intro-text">읽고, 가리고, 스스로 복원해 보세요.<br>원문은 언제나 같은 자리에 있습니다.</p></div><div class="paper-art" aria-hidden="true"><div class="paper-back"></div><div class="paper-front"><i></i><i></i><b>기억에서</b><span></span><b>꺼내는 연습</b><i></i><i></i><em>↗</em></div></div></section><section class="start-panel"><div class="section-top"><h2>지금, 이어지는 공부</h2><span class="tiny">로그인 없이 · 기기 내 저장</span></div>${subjectControl()}<div class="scope-summary"><span class="label">선택한 학습 범위</span><strong>${selected.length === total ? `전체 범위 · ${total}개 소단원` : selected.length ? `${selected.length} / ${total}개 소단원` : "모든 범위가 해제되어 있습니다"}</strong><span class="tiny">학습 자료 ${units.length}개 · 문항·해설 포함 · 별도 다운로드 없이 바로 학습</span>${button("범위 조정 " + icon("arrow"), "scope", "text-button")}</div>${button(`${canResume ? "이어서 하기" : "랜덤으로 시작"} ${icon("arrow")}`, canResume ? "resume" : "start", "primary start-button", busy ? "disabled" : "")}${canResume ? `<p class="micro">${esc(names[catalog.units.find((u) => u.id === s.queue[s.index])?.subject ?? p.subject])} · ${s.index + 1}/${s.queue.length} · 입력과 가림 상태가 저장되어 있습니다.</p>` : ""}<div class="session-options"><fieldset><legend>복원 방식</legend><div class="segmented">${button("빠른 복원", "output", p.output === "quick" ? "selected" : "", 'data-value="quick"')}${button("직접 복원", "output", p.output === "typed" ? "selected" : "", 'data-value="typed"')}</div></fieldset><fieldset><legend>출제 방식</legend><select aria-label="출제 방식" id="mode"><option value="random" ${p.mode === "random" ? "selected" : ""}>자유 랜덤</option><option value="review" ${p.mode === "review" ? "selected" : ""}>오늘 복습</option></select></fieldset><fieldset><legend>한 묶음</legend><select aria-label="한 묶음" id="batch">${[5, 10, 20].map((n) => `<option ${p.batch === n ? "selected" : ""} value="${n}">${n}개</option>`).join("")}</select></fieldset></div><p class="micro">${p.mode === "review" ? `기한이 된 원문부터 복습합니다. 새 원문은 두 과목 합쳐 하루 ${p.dailyNew}개까지.` : "선택한 범위 안에서 섞어 출제합니다. 자유 랜덤은 복습 날짜를 바꾸지 않습니다."}</p></section><section class="quiet-footer"><span>${icon("check")} 원문과 출처를 함께</span><span>${icon("download")} ${offlineReady ? "전체 학습 자료 · 오프라인 준비됨" : "자동 저장 중 · 지금 바로 학습 가능"}</span></section>`;
 }
 function scopeHTML() {
-  return `<div class="dialog-head"><div><p class="kicker">학습할 만큼만</p><h2>범위 선택</h2></div>${button(icon("close"), "close-modal", "icon-button", 'aria-label="닫기"')}</div>${subjectControl()}<p class="muted">소단원을 선택하고 자료를 내려받으세요. 첫 다운로드에는 연결이 필요합니다.</p><div class="chapter-list">${catalog.chapters
+  return `<div class="dialog-head"><div><p class="kicker">전체 범위로 바로 시작</p><h2>범위 조정</h2></div>${button(icon("close"), "close-modal", "icon-button", 'aria-label="닫기"')}</div>${subjectControl()}<p class="muted">처음에는 모든 범위가 포함됩니다. 빼고 싶은 소단원만 해제하세요. 변경은 바로 반영됩니다.</p><div class="button-row">${button("전체 포함", "scope-all", "secondary")}${button("전체 해제", "scope-none", "text-button")}</div><div class="chapter-list">${catalog.chapters
     .filter((c) => c.subject === state.prefs.subject)
-    .map((c) => {
-      const pack = catalog.packs.find((p) => p.id === c.id)!,
-        count = pack.units.length;
-      return `<label class="chapter-option"><input type="checkbox" data-chapter="${c.id}" ${state.prefs.chapters.includes(c.id) ? "checked" : ""}><span><small>${esc(c.parent)}</small><strong>${esc(c.title)}</strong><small>원문 ${count}개 · ${mb(pack.bytes)} · ${state.installed[c.id] === pack.version ? "오프라인 준비됨" : "다운로드 필요"}</small></span></label>`;
-    })
-    .join(
-      "",
-    )}</div>${button("선택한 범위 저장", "scope-done", "primary full")}`;
+    .map(
+      (c) =>
+        `<label class="chapter-option"><input type="checkbox" data-chapter="${c.id}" ${state.prefs.chapters.includes(c.id) ? "checked" : ""}><span><small>${esc(c.parent)}</small><strong>${esc(c.title)}</strong><small>학습 자료 ${catalog.units.filter((u) => u.chapterId === c.id && u.studyEnabled !== false).length}개 · 문항·해설 포함</small></span></label>`,
+    )
+    .join("")}</div>${button("닫기", "scope-done", "primary full")}`;
 }
 function studyHTML() {
   const s = state.session;
@@ -222,8 +221,10 @@ function clozeText(text: string, b: Block, u: Unit, hidden: boolean) {
   for (const t of targets) {
     const i = u.targets.indexOf(t);
     let at = text.indexOf(t.expectedText);
-    if (at >= 0)
+    while (at >= 0) {
       items.push({ start: at, end: at + t.expectedText.length, index: i });
+      at = text.indexOf(t.expectedText, at + t.expectedText.length);
+    }
   }
   items = items.sort((a, b) => a.start - b.start);
   let offset = 0,
@@ -237,7 +238,26 @@ function clozeText(text: string, b: Block, u: Unit, hidden: boolean) {
   }
   return out + esc(text.slice(offset));
 }
+function illustrationCredit(f: NonNullable<Block["illustration"]>) {
+  const license = f.license.includes("BY-NC-SA")
+    ? "https://creativecommons.org/licenses/by-nc-sa/4.0/"
+    : f.license.includes("BY-SA")
+      ? "https://creativecommons.org/licenses/by-sa/4.0/"
+      : f.license.includes("CC BY")
+        ? "https://creativecommons.org/licenses/by/4.0/"
+        : "https://www.nasa.gov/nasa-brand-center/images-and-media/";
+  return `<a href="${esc(f.sourceUrl)}" target="_blank" rel="noopener noreferrer">${esc(f.credit)} ↗</a> · <a href="${license}" target="_blank" rel="noopener noreferrer">${esc(f.license)}</a>${f.credit.includes("OpenStax") ? ' · <a href="https://openstax.org/books/biology-2e/pages/1-introduction" target="_blank" rel="noopener noreferrer">Access for free · 무료 원문</a>' : ""}`;
+}
 function blockHTML(b: Block, u: Unit, hidden: boolean) {
+  if (b.type === "network") {
+    return `<figure class="system-figure"><div class="system-map"><svg viewBox="0 0 400 260" preserveAspectRatio="none" aria-hidden="true"><path d="M100 60H300M100 200H300M100 60V200M300 60V200M100 60L300 200M300 60L100 200"/></svg><ul>${b.nodes!.map((n) => `<li>${clozeText(n, b, u, hidden)}</li>`).join("")}</ul></div><figcaption>${esc(b.caption ?? "물질과 에너지의 이동")}</figcaption><ol class="system-relations">${b.rows!.map((r) => `<li><div class="relation-direction">${clozeText(r[0], b, u, hidden)} <span aria-label="에서">→</span> ${clozeText(r[2], b, u, hidden)}</div><p>${clozeText(r[1], b, u, hidden)}</p></li>`).join("")}</ol></figure>`;
+  }
+  if (b.type === "pyramid")
+    return `<figure class="energy-pyramid"><ol>${b.nodes!.map((n, i) => `<li style="--tier:${i}">${clozeText(n, b, u, hidden)}</li>`).join("")}</ol><figcaption>${esc(b.caption ?? "영양 단계")}</figcaption><p class="original-text">${clozeText(b.text.split("\n").at(-1)!, b, u, hidden)}</p></figure>`;
+  if (b.illustration) {
+    const f = b.illustration;
+    return `<p class="original-text">${clozeText(b.text, b, u, hidden)}</p><figure class="inline-illustration"><button class="image-button illustration-button ${hidden ? "figure-hidden" : ""}" data-action="zoom-illustration" data-value="${esc(u.id)}" ${hidden ? "disabled" : ""}><img src="${esc(f.image)}" alt="학습용 시각자료" draggable="false">${hidden ? '<span class="figure-cover">그림을 떠올려 보세요</span>' : `<span class="image-zoom-label">${icon("zoom")} 확대</span>`}</button><figcaption>${hidden ? "그림은 원문 확인 때 함께 나타납니다." : esc(f.caption)}<br>${illustrationCredit(f)}${!hidden && f.note ? `<p>${esc(f.note)}</p>` : ""}</figcaption></figure>`;
+  }
   const region =
     u.id === unitNow()?.id ? state.session?.imageRegion : undefined;
   if (b.type === "image" && region) {
@@ -252,7 +272,7 @@ function blockHTML(b: Block, u: Unit, hidden: boolean) {
   if (b.type === "chart") {
     const rows = b.rows!,
       maximum = Math.max(...rows.map((row) => Number(row[1])), 1);
-    return `<figure class="data-chart"><figcaption>${esc(u.title)}${b.chartYear ? ` · ${esc(b.chartYear)}` : ""}${b.chartUnit ? ` (단위: ${esc(b.chartUnit)})` : ""}</figcaption><ol>${rows.map((row) => `<li><span class="chart-label">${clozeText(row[0], b, u, hidden)}</span><span class="chart-track" aria-hidden="true"><span style="width:${(Number(row[1]) / maximum) * 100}%"></span></span><span class="chart-value">${clozeText(row[1], b, u, hidden)}</span></li>`).join("")}</ol><p class="micro">교재에 제시된 시점의 수치입니다. 막대 길이는 값에 비례합니다.</p></figure>`;
+    return `<figure class="data-chart"><figcaption>${esc(u.title)}${b.chartYear ? ` · ${esc(b.chartYear)}` : ""}${b.chartUnit ? ` (단위: ${esc(b.chartUnit)})` : ""}</figcaption><ol>${rows.map((row) => `<li><span class="chart-label">${clozeText(row[0], b, u, hidden)}</span><span class="chart-track" aria-hidden="true"><span style="width:${(Number(row[1]) / maximum) * 100}%"></span></span><span class="chart-value">${clozeText(row[1], b, u, hidden)}</span></li>`).join("")}</ol><p class="micro">${esc(b.caption ?? "교재에 제시된 시점의 수치입니다. 막대 길이는 값에 비례합니다.")}</p></figure>`;
   }
   if (b.type === "table")
     return `<div class="table-wrapper" tabindex="0" role="region" aria-label="${esc(u.title)} 표"><table><caption>${esc(b.caption ?? u.title)}</caption><thead><tr>${b.headers!.map((h) => `<th scope="col">${esc(h)}</th>`).join("")}</tr></thead><tbody>${b.rows!.map((row) => `<tr>${row.map((cell, i) => `<${i === 0 ? 'th scope="row"' : "td"}>${clozeText(cell, b, u, hidden)}</${i === 0 ? "th" : "td"}>`).join("")}</tr>`).join("")}</tbody></table></div>`;
@@ -323,6 +343,7 @@ function libraryHTML() {
     events = ratings(state.events);
   let units = catalog.units.filter(
     (u) =>
+      u.studyEnabled !== false &&
       u.subject === p.subject &&
       (!search ||
         `${u.title} ${u.blocks.map((b) => b.text).join(" ")}`.includes(search)),
@@ -341,13 +362,12 @@ function libraryHTML() {
     units = units.filter((u) =>
       events.some((e) => e.unitId === u.id && e.rating !== "full"),
     );
-  return `${message()}<div class="page-eyebrow">나의 교재 <span>LIBRARY</span></div><h1 class="page-title">원문을, 있는 그대로.</h1><p class="muted">검수한 학습 원문과 PDF 전체 페이지를 함께 보관합니다.</p>${subjectControl()}<div class="library-tabs">${button("학습 원문", "library-tab", libraryTab === "units" ? "selected" : "", 'data-value="units"')}${button("전체 PDF · 자료 상태", "library-tab", libraryTab === "pages" ? "selected" : "", 'data-value="pages"')}${button("오프라인 자료 팩", "library-tab", libraryTab === "packs" ? "selected" : "", 'data-value="packs"')}</div>${
+  return `${message()}<div class="page-eyebrow">나의 교재 <span>LIBRARY</span></div><h1 class="page-title">읽기 편하게, 기억하기 쉽게.</h1><p class="muted">문장·표·도식으로 학습하고, 필요할 때 교재 원본을 확인하세요.</p>${subjectControl()}<div class="library-tabs">${button("학습 원문", "library-tab", libraryTab === "units" ? "selected" : "", 'data-value="units"')}${button("전체 PDF · 자료 상태", "library-tab", libraryTab === "pages" ? "selected" : "", 'data-value="pages"')}</div>${
     libraryTab === "units"
       ? `<div class="library-controls"><input type="search" id="search" aria-label="원문 검색" placeholder="제목이나 원문에서 찾기" value="${esc(search)}"><select id="filter" aria-label="원문 필터"><option value="all">전체 원문</option><option value="new" ${filter === "new" ? "selected" : ""}>미학습</option><option value="missed" ${filter === "missed" ? "selected" : ""}>헷갈림</option></select><select id="source-filter" aria-label="자료 유형">${[
           ["all", "모든 자료"],
           ["concept", "개념·핵심 자료"],
           ["exam", "문항·해설 개념"],
-          ["pages", "원문 전체 이미지"],
         ]
           .map(
             ([value, label]) =>
@@ -355,27 +375,15 @@ function libraryHTML() {
           )
           .join(
             "",
-          )}</select></div><p class="micro">${units.length}개 표시 · 문항·해설 개념도 기본 학습에 포함됩니다.</p><div class="units-list">${units.length ? units.map((u) => `<button class="unit-row" data-action="preview-unit" data-value="${u.id}"><span class="unit-kind">${u.type === "chart" ? "그래프" : u.type === "table" ? "표" : u.type === "image" ? "그림" : u.type === "diagram" ? "흐름" : "문장"}</span><span><small>${esc(sourceName(u))} · ${esc(chapter(u.chapterId)?.title)}</small><strong>${esc(u.title)}</strong><small>${u.origin === "pdf" ? `PDF ${u.page}쪽` : "공식 자료 보완"} · ${hasSeen(state.events, u.id) ? "접촉한 원문" : "미학습"}</small></span>${icon("arrow")}</button>`).join("") : '<div class="empty">일치하는 원문이 없습니다. 검색어나 필터를 바꿔 보세요.</div>'}</div>`
-      : libraryTab === "packs"
-        ? packsHTML()
-        : pagesHTML()
+          )}</select></div><p class="micro">${units.length}개 표시 · 문항·해설 개념도 기본 학습에 포함됩니다.</p><div class="units-list">${units.length ? units.map((u) => `<button class="unit-row" data-action="preview-unit" data-value="${u.id}"><span class="unit-kind">${u.type === "chart" ? "그래프" : u.type === "table" ? "표" : u.type === "image" ? "그림" : ["diagram", "network", "pyramid"].includes(u.type) ? "도식" : "문장"}</span><span><small>${esc(sourceName(u))} · ${esc(chapter(u.chapterId)?.title)}</small><strong>${esc(u.title)}</strong><small>${u.origin === "pdf" ? `PDF ${u.page}쪽` : "공식 자료 보완"} · ${hasSeen(state.events, u.id) ? "접촉한 원문" : "미학습"}</small></span>${icon("arrow")}</button>`).join("") : '<div class="empty">일치하는 원문이 없습니다. 검색어나 필터를 바꿔 보세요.</div>'}</div>`
+      : pagesHTML()
   }`;
-}
-function packsHTML() {
-  return `<p class="micro">체크섬 확인이 끝난 자료만 준비 완료로 표시합니다. 팩을 삭제해도 학습 기록은 남습니다.</p>${catalog.packs
-    .filter((p) => chapter(p.chapterId)?.subject === state.prefs.subject)
-    .map((p) => {
-      const d = downloads.get(p.id),
-        installed = state.installed[p.id] === p.version;
-      return `<section class="pack-card"><div><small>${esc(chapter(p.id)?.parent)}</small><h2>${esc(p.title)}</h2><p class="tiny">원문 ${p.units.length}개 · ${mb(p.bytes)} · ${p.version}</p><p class="pack-state">${d?.error ? esc(d.error) : d ? `다운로드 및 검증 ${Math.round(d.progress * 100)}%` : installed ? "✓ 오프라인 준비됨" : "온라인 · 다운로드 필요"}</p>${d && !d.error ? `<progress max="1" value="${d.progress}"></progress>` : ""}</div><div>${button(installed ? "다시 확인" : "다운로드", "install-pack", "secondary", `data-value="${p.id}" ${d && !d.error ? "disabled" : ""}`)}${installed ? button("팩 삭제", "delete-pack", "text-button", `data-value="${p.id}"`) : ""}</div></section>`;
-    })
-    .join("")}`;
 }
 function pagesHTML() {
   const pages = catalog.pages.filter(
     (p) => p.documentId === state.prefs.subject,
   );
-  return `<div class="audit-summary"><strong>${names[state.prefs.subject]} ${pages.length}쪽 전체</strong><p>개념 본문뿐 아니라 문항·해설·핵심 자료를 포함합니다. 페이지를 열면 연결된 개념과 원문 전체 학습으로 이동합니다. 이미지 전체 보존과 문장 전사는 구분해 표시합니다.</p></div><div class="pages-grid">${pages.map((p) => `<button class="page-thumb" data-action="page" data-value="${p.id}"><img src="${esc(p.thumbnail)}" loading="lazy" alt="PDF ${p.pdfPage}쪽 미리보기"><strong>PDF ${p.pdfPage}쪽</strong><span>${{ concept: "개념", exercise: "문제·해설", reference: "참고 자료", uncertain: "확인 대기" }[p.classification]}</span><small>${esc(p.status)}</small></button>`).join("")}</div>`;
+  return `<div class="audit-summary"><strong>${names[state.prefs.subject]} ${pages.length}쪽 전체</strong><p>개념 본문뿐 아니라 문항·해설·핵심 자료를 포함합니다. 페이지를 열면 원본과 연결된 학습 개념을 볼 수 있습니다. 원본 사진은 열 때 자동으로 저장됩니다.</p></div><div class="pages-grid">${pages.map((p) => `<button class="page-thumb" data-action="page" data-value="${p.id}"><img src="${esc(p.thumbnail)}" loading="lazy" alt="PDF ${p.pdfPage}쪽 미리보기"><strong>PDF ${p.pdfPage}쪽</strong><span>${{ concept: "개념", exercise: "문제·해설", reference: "참고 자료", uncertain: "확인 대기" }[p.classification]}</span><small>${esc(p.status)}</small></button>`).join("")}</div>`;
 }
 function recordsHTML() {
   const v = summary(state.events),
@@ -437,7 +445,7 @@ function settingsHTML() {
     )
     .join(
       "",
-    )}</select></label><label class="setting-row"><span>짧은 화면 전환 효과</span><input type="checkbox" id="motion" ${p.motion ? "checked" : ""}></label><label class="setting-row"><span>하루 새 원문 <small>두 과목 합산 · 오늘 복습에 적용</small></span><input type="number" min="0" max="100" id="daily-new" value="${p.dailyNew}"></label><p class="micro">학습일 기준: Asia/Seoul 자정. 복습 간격은 1·3·7·14·30일입니다.</p></section><section class="settings-section"><h2>기록과 저장 공간</h2><p class="muted">기록은 이 브라우저에 보관됩니다. 기기를 바꾸거나 브라우저 데이터를 지우기 전에 백업하세요.</p><div class="button-row">${button("기록 내보내기", "backup", "secondary")}${button("백업 가져오기", "import", "secondary")}${button("지속 저장 요청", "persist", "text-button")}${button("저장 공간 확인", "storage", "text-button")}</div><p class="micro">가져오기는 기록 ID로 병합합니다. 설정은 백업 값을 적용하며 현재 진행 중인 세션과 내려받은 팩은 유지합니다.</p><input hidden type="file" id="backup-file" accept="application/json,.json"></section><section class="settings-section"><h2>자료 상태</h2><p>PDF 2개 · ${catalog.pages.length}쪽 · 검수 학습 원문 ${catalog.units.length}개</p><p class="micro">${catalog.audit.notes.map(esc).join("<br>")}</p>${button("전체 페이지 상태 보기", "audit", "text-button")}${button(registration?.waiting ? "새 버전 적용" : "업데이트 확인", "update", "secondary")}</section>`;
+    )}</select></label><label class="setting-row"><span>짧은 화면 전환 효과</span><input type="checkbox" id="motion" ${p.motion ? "checked" : ""}></label><label class="setting-row"><span>하루 새 원문 <small>두 과목 합산 · 오늘 복습에 적용</small></span><input type="number" min="0" max="100" id="daily-new" value="${p.dailyNew}"></label><p class="micro">학습일 기준: Asia/Seoul 자정. 복습 간격은 1·3·7·14·30일입니다.</p></section><section class="settings-section"><h2>기록과 저장 공간</h2><p class="muted">기록은 이 브라우저에 보관됩니다. 기기를 바꾸거나 브라우저 데이터를 지우기 전에 백업하세요.</p><div class="button-row">${button("기록 내보내기", "backup", "secondary")}${button("백업 가져오기", "import", "secondary")}${button("지속 저장 요청", "persist", "text-button")}${button("저장 공간 확인", "storage", "text-button")}</div><p class="micro">가져오기는 기록 ID로 병합합니다. 설정은 백업 값을 적용하며 현재 진행 중인 세션과 저장된 자료는 유지합니다.</p><input hidden type="file" id="backup-file" accept="application/json,.json"></section><section class="settings-section"><h2>자료 상태</h2><p>PDF 2개 · ${catalog.pages.length}쪽 · 학습 자료 ${catalog.units.filter((u) => u.studyEnabled !== false).length}개</p><p class="micro">${catalog.audit.notes.map(esc).join("<br>")}</p>${button("전체 페이지 상태 보기", "audit", "text-button")}${button(registration?.waiting ? "새 버전 적용" : "업데이트 확인", "update", "secondary")}</section>`;
 }
 function bindInputs() {
   modal?.querySelectorAll<HTMLInputElement>("[data-region-edge]").forEach(
@@ -497,7 +505,7 @@ function bindInputs() {
         error.className = "image-error";
         error.setAttribute("role", "status");
         error.textContent =
-          "이미지를 불러오지 못했습니다. 연결 후 자료 화면에서 해당 소단원 팩을 다시 다운로드해 주세요.";
+          "그림을 아직 저장하지 못했습니다. 연결되면 자동으로 다시 준비합니다. 문장·표 학습은 계속할 수 있습니다.";
         img.insertAdjacentElement("afterend", error);
       }),
   );
@@ -637,32 +645,13 @@ function showDialog(html: string, wide = false) {
 }
 function closeDialog(pop = true) {
   if (modal) {
+    const changedScope = !!modal.querySelector("[data-chapter]");
     modal.close();
     modal.remove();
     modal = null;
+    if (changedScope) render();
   }
   if (pop && location.hash === "#viewer") history.back();
-}
-async function ensurePack(p: Pack) {
-  if (state.installed[p.id] === p.version && (await verifyPack(p))) return;
-  downloads.set(p.id, { progress: 0 });
-  render();
-  try {
-    await installPack(p, (n) => {
-      downloads.set(p.id, { progress: n });
-      if (screen === "library" && libraryTab === "packs") render();
-    });
-    state.installed[p.id] = p.version;
-    await saveDraft();
-    downloads.delete(p.id);
-    render();
-  } catch (e) {
-    downloads.set(p.id, {
-      progress: downloads.get(p.id)?.progress ?? 0,
-      error: (e as Error).message,
-    });
-    throw e;
-  }
 }
 async function start() {
   if (busy || saveError || conflict) return;
@@ -687,10 +676,6 @@ async function start() {
       render();
       return;
     }
-    for (const id of new Set(
-      queue.map((id) => catalog.units.find((u) => u.id === id)!.chapterId),
-    ))
-      await ensurePack(catalog.packs.find((p) => p.id === id)!);
     const session = newSession(
       queue,
       state.prefs,
@@ -754,11 +739,8 @@ async function sourceView(pageId?: string) {
   await saveDraft();
   const box = !pageId ? (state.session?.imageRegion ?? u?.sourceBox) : null;
   const links = linkedUnits(page.relatedUnitIds ?? page.unitIds ?? []);
-  const fullPage = (page.unitIds ?? [])
-    .map((id) => catalog.units.find((u) => u.id === id))
-    .find((u) => u && isPageUnit(u));
   showDialog(
-    `<div class="dialog-head"><div><p class="kicker">${names[page.documentId]} · PDF ${page.pdfPage}쪽</p><h2>${page.printedPage ? "책 " + esc(page.printedPage) + "쪽" : "원본 페이지"}</h2></div>${button(icon("close"), "close-modal", "icon-button", 'aria-label="원본 닫기"')}</div><p class="micro">${esc(page.status)} · PDF 전체 파일은 앱에 저장하지 않습니다. 이 페이지 이미지를 제공합니다.</p><div class="zoom-controls">${button("−", "source-minus", "secondary", 'aria-label="축소"')}<span id="zoom-value">100%</span>${button("+", "source-plus", "secondary", 'aria-label="확대"')}${button("화면에 맞추기", "source-reset", "text-button")}</div><div class="source-viewport" tabindex="0"><div class="source-canvas" style="width:100%"><img src="${esc(page.image)}" alt="교재 PDF ${page.pdfPage}쪽 원본">${box ? `<span class="source-outline" style="left:${box[0] * 100}%;top:${box[1] * 100}%;width:${(box[2] - box[0]) * 100}%;height:${(box[3] - box[1]) * 100}%"></span>` : ""}</div></div>${fullPage ? button("이 페이지 원문 전체 학습", "learn-unit", "primary full", `data-value="${fullPage.id}"`) : ""}${links}`,
+    `<div class="dialog-head"><div><p class="kicker">${names[page.documentId]} · PDF ${page.pdfPage}쪽</p><h2>${page.printedPage ? "책 " + esc(page.printedPage) + "쪽" : "원본 페이지"}</h2></div>${button(icon("close"), "close-modal", "icon-button", 'aria-label="원본 닫기"')}</div><p class="micro">${esc(page.status)} · PDF 전체 파일은 앱에 저장하지 않습니다. 이 페이지 이미지를 제공합니다.</p><div class="zoom-controls">${button("−", "source-minus", "secondary", 'aria-label="축소"')}<span id="zoom-value">100%</span>${button("+", "source-plus", "secondary", 'aria-label="확대"')}${button("화면에 맞추기", "source-reset", "text-button")}</div><div class="source-viewport" tabindex="0"><div class="source-canvas" style="width:100%"><img src="${esc(page.image)}" alt="교재 PDF ${page.pdfPage}쪽 원본">${box ? `<span class="source-outline" style="left:${box[0] * 100}%;top:${box[1] * 100}%;width:${(box[2] - box[0]) * 100}%;height:${(box[3] - box[1]) * 100}%"></span>` : ""}</div></div>${links}`,
     true,
   );
   history.pushState({ viewer: true }, "", "#viewer");
@@ -924,6 +906,20 @@ async function action(name: string, value?: string) {
     case "scope":
       showDialog(scopeHTML());
       break;
+    case "scope-all":
+    case "scope-none": {
+      const current = catalog.chapters
+        .filter((c) => c.subject === state.prefs.subject)
+        .map((c) => c.id);
+      state.prefs.chapters = state.prefs.chapters.filter(
+        (id) => !current.includes(id),
+      );
+      if (name === "scope-all") state.prefs.chapters.push(...current);
+      await saveDraft();
+      render();
+      showDialog(scopeHTML());
+      break;
+    }
     case "scope-done":
       await saveDraft();
       closeDialog();
@@ -934,20 +930,6 @@ async function action(name: string, value?: string) {
       break;
     case "resume":
       if (state.session) {
-        try {
-          for (const id of new Set(
-            state.session.queue
-              .map((id) => catalog.units.find((u) => u.id === id)?.chapterId)
-              .filter(Boolean),
-          )) {
-            const p = catalog.packs.find((p) => p.id === id);
-            if (p && state.installed[p.id]) await ensurePack(p);
-          }
-        } catch (e) {
-          notice = (e as Error).message;
-          render();
-          break;
-        }
         screen = "study";
         history.pushState({ study: true }, "", "#study");
         render();
@@ -1042,9 +1024,20 @@ async function action(name: string, value?: string) {
           await saveDraft();
         }
         showDialog(
-          `<h2>공식 보완 자료 출처</h2><a href="${esc(u.sourceUrl)}" target="_blank" rel="noopener noreferrer">${esc(u.sourceLabel)} ↗</a><p class="micro">외부 원문 페이지는 연결이 필요합니다. 보완 학습 내용은 오프라인 팩에 포함됩니다.</p>${button("닫기", "close-modal", "secondary")}`,
+          `<h2>공식 보완 자료 출처</h2><a href="${esc(u.sourceUrl)}" target="_blank" rel="noopener noreferrer">${esc(u.sourceLabel)} ↗</a><p class="micro">외부 원문 페이지는 연결이 필요합니다. 보완 학습 내용은 앱에 자동으로 저장됩니다.</p>${button("닫기", "close-modal", "secondary")}`,
         );
       } else await sourceView();
+      break;
+    }
+    case "zoom-illustration": {
+      const u = catalog.units.find((u) => u.id === value);
+      const f = u?.blocks.find((b) => b.illustration)?.illustration;
+      if (!f || (unitNow()?.id === value && state.session?.phase === "recall"))
+        break;
+      showDialog(
+        `<div class="dialog-head"><h2>시각자료 확대</h2>${button(icon("close"), "close-modal", "icon-button", 'aria-label="닫기"')}</div><div class="zoom-controls">${button("−", "source-minus", "secondary", 'aria-label="축소"')}<span id="zoom-value">100%</span>${button("+", "source-plus", "secondary", 'aria-label="확대"')}</div><div class="source-viewport"><div class="source-canvas"><img src="${esc(f.image)}" alt="${esc(f.caption)}"></div></div><p class="micro">${esc(f.caption)} · ${illustrationCredit(f)}</p>`,
+        true,
+      );
       break;
     }
     case "zoom-image":
@@ -1069,38 +1062,12 @@ async function action(name: string, value?: string) {
       libraryTab = value!;
       render();
       break;
-    case "install-pack":
-      try {
-        await ensurePack(catalog.packs.find((p) => p.id === value)!);
-      } catch (e) {
-        notice = (e as Error).message;
-        render();
-      }
-      break;
-    case "delete-pack": {
-      const p = catalog.packs.find((p) => p.id === value)!;
-      if (
-        state.session &&
-        state.session.phase !== "ended" &&
-        state.session.queue.some((id) => p.units.includes(id))
-      ) {
-        notice =
-          "진행 중인 학습이 사용하는 팩입니다. 묶음을 마친 뒤 삭제할 수 있습니다.";
-        render();
-        return;
-      }
-      await removePack(p);
-      delete state.installed[p.id];
-      await saveDraft();
-      render();
-      break;
-    }
     case "preview-unit": {
       const u = catalog.units.find((u) => u.id === value)!;
       exposure(u);
       await saveDraft();
       showDialog(
-        `<div class="dialog-head"><div><p class="kicker">${names[u.subject]} · ${u.origin === "pdf" ? `PDF ${u.page}쪽` : "공식 보완 자료"}</p><h2>${esc(u.title)}</h2></div>${button(icon("close"), "close-modal", "icon-button", 'aria-label="닫기"')}</div>${sourceGuide(u)}<div class="preview-content">${u.blocks.map((b) => blockHTML(b, u, false)).join("")}</div>${pageLinks(u)}${button("이 자료 바로 학습", "learn-unit", "primary full", `data-value="${u.id}"`)}<p class="micro">열람은 원문 접촉으로 기록하며 복원 성공으로 집계하지 않습니다.</p>${button("이 소단원 학습 범위에 추가", "add-scope", "primary full", `data-value="${u.chapterId}"`)}`,
+        `<div class="dialog-head"><div><p class="kicker">${names[u.subject]} · ${u.origin === "pdf" ? `PDF ${u.page}쪽` : "공식 보완 자료"}</p><h2>${esc(u.title)}</h2></div>${button(icon("close"), "close-modal", "icon-button", 'aria-label="닫기"')}</div>${sourceGuide(u)}<div class="preview-content">${u.blocks.map((b) => blockHTML(b, u, false)).join("")}</div>${pageLinks(u)}${u.studyEnabled !== false ? button("이 자료 바로 학습", "learn-unit", "primary full", `data-value="${u.id}"`) : '<p class="micro">이전 사진 학습의 참고 자료입니다. 연결된 문장·표·도식으로 학습하세요.</p>'}<p class="micro">열람은 원문 접촉으로 기록하며 복원 성공으로 집계하지 않습니다.</p>${!state.prefs.chapters.includes(u.chapterId) ? button("이 소단원도 포함", "add-scope", "text-button", `data-value="${u.chapterId}"`) : ""}`,
         true,
       );
       break;
@@ -1114,11 +1081,10 @@ async function action(name: string, value?: string) {
       break;
     case "learn-unit": {
       const u = catalog.units.find((u) => u.id === value);
-      if (!u || busy) return;
+      if (!u || busy || u.studyEnabled === false) return;
       busy = true;
       try {
         closeDialog();
-        await ensurePack(catalog.packs.find((p) => p.id === u.chapterId)!);
         const session = newSession(
           [u.id],
           { ...state.prefs, output: state.prefs.output, mode: "random" },
@@ -1263,6 +1229,38 @@ function preload() {
       }
   }
 }
+let applyingIdleUpdate = false;
+function applyIdleUpdate(worker = registration?.waiting) {
+  if (
+    !worker ||
+    !registration?.active ||
+    applyingIdleUpdate ||
+    saveError ||
+    conflict ||
+    (state.session && state.session.phase !== "ended")
+  )
+    return;
+  applyingIdleUpdate = true;
+  void saving.then(() => {
+    navigator.serviceWorker.addEventListener(
+      "controllerchange",
+      () => location.reload(),
+      { once: true },
+    );
+    worker.postMessage("APPLY_UPDATE");
+  });
+}
+function watchUpdates(reg: ServiceWorkerRegistration) {
+  const observe = () => {
+    const worker = reg.installing;
+    worker?.addEventListener("statechange", () => {
+      if (worker.state === "installed") applyIdleUpdate(worker);
+    });
+  };
+  reg.addEventListener("updatefound", observe);
+  observe();
+  applyIdleUpdate();
+}
 async function boot() {
   try {
     [state, catalog] = await Promise.all([
@@ -1281,7 +1279,17 @@ async function boot() {
       throw Error(
         "저장된 기록 형식을 확인할 수 없습니다. 브라우저 데이터를 지우지 말고 백업을 보관해 주세요.",
       );
+    const upgraded = upgradeStudySession(upgradeScope(state, catalog), catalog);
+    if (upgraded !== state) state = await writeState(upgraded, state.revision);
     registration = await registerWorker().catch(() => null);
+    if (registration) watchUpdates(registration);
+    if (registration?.active && navigator.onLine)
+      void registration.update().catch(() => {});
+    if (registration)
+      void navigator.serviceWorker.ready.then(() => {
+        offlineReady = true;
+        if (screen === "home") render();
+      });
     if (location.hash === "#study" && state.session) screen = "study";
     render();
   } catch (e) {

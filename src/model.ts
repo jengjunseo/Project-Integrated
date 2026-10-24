@@ -31,7 +31,8 @@ export interface Target {
 }
 export interface Block {
   id: string;
-  type: "text" | "table" | "diagram" | "image" | "chart";
+  type:
+    "text" | "table" | "diagram" | "image" | "chart" | "network" | "pyramid";
   text: string;
   headers?: string[];
   rows?: string[][];
@@ -41,8 +42,17 @@ export interface Block {
   caption?: string;
   chartUnit?: string;
   chartYear?: string;
+  illustration?: {
+    image: string;
+    caption: string;
+    sourceUrl: string;
+    credit: string;
+    license: string;
+    note?: string;
+  };
 }
 export interface Unit {
+  studyEnabled?: boolean;
   id: string;
   revision: number;
   subject: Subject;
@@ -102,6 +112,7 @@ export interface Catalog {
   audit: { verifiedUnits: number; pendingPages: number; notes: string[] };
 }
 export interface Preferences {
+  scopeVersion?: number;
   subject: Subject;
   chapters: string[];
   mode: Mode;
