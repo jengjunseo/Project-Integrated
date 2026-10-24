@@ -1,48 +1,90 @@
 {
-  "version": "v1.1.0",
-  "pages": 135,
-  "units": 452,
+  "verifiedAt": "2026-10-24",
+  "deploymentId": "dpl_3yvtsUfEhgAabRUMGcoxcPZhNFFi",
+  "commit": "8a5da51855f1ec271ad3057ae0ed89c6d72d47b9",
+  "url": "https://project-integrated-wondaes-projects-fe5c826b.vercel.app",
+  "version": "v1.2.0",
+  "learningUnits": 339,
+  "archivedPhotoUnits": 131,
   "examConcepts": 123,
-  "charts": 3,
-  "commit": "2db2b77d0e14e982ab3373c0e7ac27493c64fb50",
-  "deploymentId": "dpl_B1n565j1NUWXSFtaUWCXvgSyNjy9",
-  "checks": [
+  "officialIllustrations": 5,
+  "files": [
     {
-      "file": "index.html",
+      "path": "/",
       "status": 200,
       "bytes": 866,
-      "sha256": "c331f0125b74056e3195186c88686ed829295eed136b807d8a7a479a476ccb43",
-      "equalToValidatedBuild": true
+      "sha256": "cd38f1945caee4c749a5be1aa742cac3016966d9b1f73be3976599dc7af0d553",
+      "matchesDist": true
     },
     {
-      "file": "catalog.json",
+      "path": "/content/catalog.json",
       "status": 200,
-      "bytes": 569480,
-      "sha256": "f3df8900e5d1d814f8075e6850487a173142a2b63103317d7381a2b05895fc56",
-      "equalToValidatedBuild": true
+      "bytes": 604227,
+      "sha256": "932c4e669f48b9f44d5a73608770eee831fcd62b408ad4ce89852d984a5003a3",
+      "matchesDist": true
     },
     {
-      "file": "sw.js",
+      "path": "/sw.js",
       "status": 200,
-      "bytes": 1341,
-      "sha256": "b6c47f022cfc77145d04e434160a49a5b6df5aad5121772e963c5a5ff5b7cdd9",
-      "equalToValidatedBuild": true
+      "bytes": 50604,
+      "sha256": "15c08707aad51f376507fda419d6a2f2364e6042e6a87b0db7feec5c9b734da0",
+      "matchesDist": true
     },
     {
-      "file": "question.jpg",
+      "path": "/assets/index-9mUPGqWA.js",
       "status": 200,
-      "bytes": 695894,
-      "sha256": "14dbef81b225ec9f1387836f59748bef2cada1d5e131f127f657b06a818e32c4",
-      "equalToValidatedBuild": true
+      "bytes": 57944,
+      "sha256": "95ebce428914f7458102031510215b89a462714cdbe7ec24ffa259952354016c",
+      "matchesDist": true
     },
     {
-      "file": "app.js",
+      "path": "/assets/index-qKMVeDcX.css",
       "status": 200,
-      "bytes": 55900,
-      "sha256": "08b0ef12360bf497fa4bfcf1dca471e31f514c232e80f07e5ee6158a281ef687",
-      "equalToValidatedBuild": true
+      "bytes": 31515,
+      "sha256": "a441a2cee8393f6c68557935f29844dbe8602482abd5dc1a62e8b888f8399c7c",
+      "matchesDist": true
+    },
+    {
+      "path": "/content/illustrations/animal-cell.webp",
+      "status": 200,
+      "bytes": 42662,
+      "sha256": "75b025186a0fc206b302ad63257f7028e8abdf9828719850406575dbc1be0f73",
+      "matchesDist": true
+    },
+    {
+      "path": "/content/illustrations/energy-budget.webp",
+      "status": 200,
+      "bytes": 660308,
+      "sha256": "445e416f0cf4f24dc639344ea43cd374042fe9e2da51630ee5ab33fca5f33486",
+      "matchesDist": true
+    },
+    {
+      "path": "/content/illustrations/plant-cell.webp",
+      "status": 200,
+      "bytes": 73210,
+      "sha256": "3ac073a4c374a95a68f733431a60e2a34ae7d78bda1cf2e3d61a7b17c04a70f8",
+      "matchesDist": true
+    },
+    {
+      "path": "/content/illustrations/silica-tetrahedron.png",
+      "status": 200,
+      "bytes": 203829,
+      "sha256": "b4296ac797a02cfd079ee91c6b2b0121828ac9c1ea55bae5054da93e8295326f",
+      "matchesDist": true
+    },
+    {
+      "path": "/content/illustrations/silicate-chains.png",
+      "status": 200,
+      "bytes": 118035,
+      "sha256": "1d320c4a73328b45d7856f6d2c708d0fb1f672b753ab83bd275a93554f8ef06b",
+      "matchesDist": true
+    },
+    {
+      "path": "/content/pages/science-013.jpg",
+      "status": 200,
+      "bytes": 817558,
+      "sha256": "21070842f4609a302b906b758596afd766cc58cdae1cc37a8035c2288f66c8bd",
+      "matchesDist": true
     }
-  ],
-  "securityHeaders": true,
-  "workerNoCache": true
+  ]
 }
