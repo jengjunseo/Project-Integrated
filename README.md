@@ -57,3 +57,8 @@ vercel promote 배포URL --scope wondaes-projects-fe5c826b --yes
 Windows에서 Vercel CLI 빌더가 `spawn cmd.exe ENOENT`로 종료되어, 검증한 dist를 공식 Build Output API v3 형식으로 묶는 tools/prepare-vercel.mjs를 사용한다. 인증/환경 파일은 출력 폴더에 복사하지 않는다.
 
 업데이트 전 기록을 백업한다. 새 Service Worker는 진행 중인 묶음이 끝날 때까지 적용하지 않는다. 보고서는 [요구 추적](docs/REQUIREMENTS_TRACE.md), [데이터 모델](docs/DATA_MODEL.md), [QA](docs/QA_REPORT.md), [성능](docs/PERFORMANCE_REPORT.md), [사용·운영 인계](docs/HANDOFF.md)를 참조한다.
+
+## 남은 검증과 자료 작업
+
+- [ ] 아직 전사·검수되지 않은 교재 본문 범위를 [콘텐츠 감사](docs/CONTENT_AUDIT.md)에 따라 검토한다.
+- [ ] 비공개 자료 묶음을 복원한 격리 환경에서 빌드와 오프라인 학습·복구 흐름을 재검증한다.
